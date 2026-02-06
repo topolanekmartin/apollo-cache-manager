@@ -1,0 +1,38 @@
+{
+  "name": "apollo-cache-manager",
+  "version": "1.0.0",
+  "description": "Chrome DevTools extension for inspecting, mocking, and managing Apollo Client cache in real-time",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/topolanekmartin/apollo-cache-manager.git"
+  },
+  "homepage": "https://github.com/topolanekmartin/apollo-cache-manager",
+  "bugs": {
+    "url": "https://github.com/topolanekmartin/apollo-cache-manager/issues"
+  },
+  "author": "Martin Topolanek",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "build:zip": "vite build && cd dist && tar -acf ../apollo-cache-manager.zip *",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "graphql": "^16.10.0",
+    "graphql-tag": "^2.12.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/chrome": "^0.0.287",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  }
+}

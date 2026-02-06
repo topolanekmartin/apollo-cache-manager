@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#1a1a2e"/>
+  <circle cx="64" cy="64" r="60" stroke="#7c3aed" stroke-width="3"/>
+
+  <!-- Orbit ring -->
+  <ellipse cx="64" cy="64" rx="42" ry="16" stroke="#7c3aed" stroke-width="2.5" stroke-opacity="0.5" transform="rotate(-30 64 64)"/>
+
+  <!-- Cache database symbol -->
+  <ellipse cx="64" cy="44" rx="22" ry="8" fill="#7c3aed" fill-opacity="0.3" stroke="#7c3aed" stroke-width="2"/>
+  <path d="M42 44 v16 c0 4.4 9.8 8 22 8 s22-3.6 22-8 v-16" stroke="#7c3aed" stroke-width="2" fill="none"/>
+  <path d="M42 52 c0 4.4 9.8 8 22 8 s22-3.6 22-8" stroke="#7c3aed" stroke-width="2" fill="none" stroke-opacity="0.6"/>
+
+  <!-- Rocket / Apollo arrow pointing up -->
+  <path d="M64 28 L58 42 L64 38 L70 42 Z" fill="#a78bfa"/>
+
+  <!-- Data nodes -->
+  <circle cx="44" cy="78" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
+  <circle cx="64" cy="84" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
+  <circle cx="84" cy="78" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
+
+  <!-- Connection lines between nodes -->
+  <line x1="49" y1="78" x2="59" y2="84" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.5"/>
+  <line x1="69" y1="84" x2="79" y2="78" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.5"/>
+  <line x1="49" y1="76" x2="79" y2="76" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.3"/>
+</svg>
