@@ -3,6 +3,7 @@ import { ConnectionStatus } from './components/ConnectionStatus'
 import { SchemaLoader } from './components/SchemaLoader'
 import { SchemaExplorer } from './components/SchemaExplorer'
 import { FragmentComposer } from './components/FragmentComposer'
+import { CacheDataProvider } from './contexts/CacheDataContext'
 import { CacheViewer } from './components/CacheViewer'
 import { Presets } from './components/Presets'
 import { useApolloConnection } from './hooks/useApolloConnection'
@@ -24,7 +25,6 @@ export const App: FC = () => {
     fragmentString: string
     data: Record<string, unknown>
   } | null>(null)
-  const [mockTarget, setMockTarget] = useState<{ typename: string; id: string } | null>(null)
   const [schemaAttempted, setSchemaAttempted] = useState(false)
 
   // Auto-load cache on mount when Apollo is detected
@@ -172,12 +172,13 @@ export const App: FC = () => {
                       </button>
                     </div>
                     <div className="flex-1 min-h-0">
-                      <FragmentComposer
-                        schema={schemaState.schema}
-                        selectedType={selectedType}
-                        onWrite={handleWrite}
-                        initialCacheId={mockTarget?.typename === selectedType ? mockTarget?.id : undefined}
-                      />
+                      <CacheDataProvider value={cacheOps.cacheData}>
+                        <FragmentComposer
+                          schema={schemaState.schema}
+                          selectedType={selectedType}
+                          onWrite={handleWrite}
+                        />
+                      </CacheDataProvider>
                     </div>
                   </div>
                 ) : (

@@ -8,6 +8,10 @@ interface FragmentBuildOptions {
   fragmentName?: string
 }
 
+function isRef(value: unknown): value is { __ref: string } {
+  return value != null && typeof value === 'object' && '__ref' in value && typeof (value as Record<string, unknown>).__ref === 'string'
+}
+
 export function buildFragmentString(options: FragmentBuildOptions): string {
   const { typeName, fields, schema, fragmentName } = options
   const name = fragmentName ?? `${typeName}Mock`
@@ -52,6 +56,14 @@ function buildSelections(
       continue
     }
 
+    // Handle __ref values - use minimal sub-selection
+    if (isRef(value)) {
+      lines.push(`${indent}${key} {`)
+      lines.push(`${indent}  __typename`)
+      lines.push(`${indent}}`)
+      continue
+    }
+
     if (depth >= maxDepth || visited.has(baseName)) {
       lines.push(`${indent}${key}`)
       continue
@@ -63,6 +75,13 @@ function buildSelections(
     if (type.kind === 'UNION' || type.kind === 'INTERFACE') {
       const nestedData = getNestedObjectData(value, fieldDef.type)
       if (nestedData && typeof nestedData === 'object') {
+        // If the resolved data is a ref, use minimal sub-selection
+        if (isRef(nestedData)) {
+          lines.push(`${indent}${key} {`)
+          lines.push(`${indent}  __typename`)
+          lines.push(`${indent}}`)
+          continue
+        }
         const typedData = nestedData as Record<string, unknown>
         const concreteTypeName = typedData.__typename as string | undefined
         if (concreteTypeName) {
@@ -94,6 +113,13 @@ function buildSelections(
     if (type.kind === 'OBJECT' || type.kind === 'INPUT_OBJECT') {
       const nestedData = getNestedObjectData(value, fieldDef.type)
       if (nestedData && typeof nestedData === 'object') {
+        // If the resolved data is a ref, use minimal sub-selection
+        if (isRef(nestedData)) {
+          lines.push(`${indent}${key} {`)
+          lines.push(`${indent}  __typename`)
+          lines.push(`${indent}}`)
+          continue
+        }
         const nested = buildSelections(
           nestedData as Record<string, unknown>,
           'fields' in type ? type.fields : [],
@@ -123,8 +149,12 @@ function getNestedObjectData(
   typeRef: TypeRef,
 ): Record<string, unknown> | null {
   if (isList(typeRef)) {
-    // For lists, use the first element as template
+    // For lists, use the first non-ref element as template
     if (Array.isArray(value) && value.length > 0) {
+      // Prefer first non-ref item for richer sub-selections
+      const nonRef = value.find((item) => item && typeof item === 'object' && !isRef(item))
+      if (nonRef) return nonRef as Record<string, unknown>
+      // If all items are refs, return the first one (will produce minimal sub-selection)
       const first = value[0]
       if (first && typeof first === 'object') return first as Record<string, unknown>
     }
