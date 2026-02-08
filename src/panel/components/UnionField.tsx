@@ -1,4 +1,4 @@
-import { type FC, useState, useCallback, useMemo } from 'react'
+import { type FC, useState, useCallback, useMemo, useEffect } from 'react'
 import type { ParsedSchema } from '../types/schema'
 import { TypeFieldForm } from './TypeFieldForm'
 import { buildEmptyFormData } from '../utils/defaultValues'
@@ -31,9 +31,34 @@ export const UnionField: FC<UnionFieldProps> = ({
   const isRef = value != null && '__ref' in value && typeof value.__ref === 'string'
   const currentTypeName = isRef ? '' : ((value?.__typename as string) ?? '')
   const [mode, setMode] = useState<Mode>(isRef ? 'reference' : 'create')
-  const [expanded, setExpanded] = useState(false)
-  const [refTypeName, setRefTypeName] = useState('')
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
+  const expanded = userExpanded ?? false
+  const [refTypeName, setRefTypeName] = useState(() => {
+    if (isRef && cacheData) {
+      const refId = (value as Record<string, unknown>).__ref as string
+      const entry = cacheData[refId]
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const tn = (entry as Record<string, unknown>).__typename as string
+        if (tn && possibleTypes.includes(tn)) return tn
+      }
+    }
+    return ''
+  })
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Resolve ref type name when cache data becomes available after mount
+  useEffect(() => {
+    if (isRef && cacheData && !refTypeName) {
+      const refId = (value as Record<string, unknown>).__ref as string
+      const entry = cacheData[refId]
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const tn = (entry as Record<string, unknown>).__typename as string
+        if (tn && possibleTypes.includes(tn)) {
+          setRefTypeName(tn)
+        }
+      }
+    }
+  }, [isRef, cacheData, value, possibleTypes, refTypeName])
 
   const activeTypeName = mode === 'reference' ? refTypeName : currentTypeName
 
@@ -108,10 +133,10 @@ export const UnionField: FC<UnionFieldProps> = ({
         } else {
           onChange(null)
         }
-        setExpanded(true)
+        setUserExpanded(true)
       } else {
         onChange(null)
-        setExpanded(false)
+        setUserExpanded(null)
       }
     },
     [schema, currentTypeName, onChange],
@@ -160,7 +185,7 @@ export const UnionField: FC<UnionFieldProps> = ({
         </select>
         {mode === 'create' && currentType && (
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => setUserExpanded(!expanded)}
             className="text-sm text-panel-text-muted hover:text-panel-text transition-colors"
           >
             {expanded ? '\u25BC' : '\u25B6'}
@@ -173,6 +198,7 @@ export const UnionField: FC<UnionFieldProps> = ({
           mode={mode}
           onModeChange={handleModeSwitch}
           entityCount={entities.length}
+          selectedRef={isRef ? (value?.__ref as string) : null}
         />
       )}
 
@@ -215,13 +241,18 @@ interface ModeToggleProps {
   mode: Mode
   onModeChange: (mode: Mode) => void
   entityCount: number
+  selectedRef: string | null
 }
 
-const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) => {
+const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, selectedRef }) => {
   const btnBase = 'px-2 py-0.5 text-xs rounded-sm transition-colors'
   const activeClass = 'bg-panel-accent text-panel-bg font-medium'
   const inactiveClass = 'bg-panel-surface text-panel-text-muted hover:text-panel-text border border-panel-border'
   const disabledClass = 'bg-panel-surface text-panel-text-muted/50 border border-panel-border cursor-not-allowed'
+
+  const existingLabel = selectedRef
+    ? `Use existing · ${selectedRef}`
+    : `Use existing${entityCount > 0 ? ` (${entityCount})` : ''}`
 
   return (
     <div className="flex gap-px">
@@ -235,7 +266,7 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) =>
         onClick={() => entityCount > 0 && onModeChange('reference')}
         disabled={entityCount === 0}
         title={entityCount === 0 ? 'No matching entities in cache' : `${entityCount} entities available`}
-        className={`${btnBase} rounded-l-none ${
+        className={`${btnBase} rounded-l-none max-w-[200px] truncate ${
           mode === 'reference'
             ? activeClass
             : entityCount === 0
@@ -243,7 +274,7 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) =>
               : inactiveClass
         }`}
       >
-        Use existing{entityCount > 0 ? ` (${entityCount})` : ''}
+        {existingLabel}
       </button>
     </div>
   )

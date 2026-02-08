@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { MSG } from '../../shared/messageTypes'
 import type { SchemaResultMessage } from '../../shared/messageTypes'
 import type { IntrospectionQuery } from 'graphql'
+import { buildSchema, introspectionFromSchema } from 'graphql'
 import { sendAndWait } from '../utils/messaging'
 import { parseIntrospectionSchema } from '../utils/schemaParser'
 import type { ParsedSchema } from '../types/schema'
@@ -96,9 +97,25 @@ export function useSchemaIntrospection() {
     }
   }, [])
 
+  const loadFromSdl = useCallback((sdl: string) => {
+    setState({ schema: null, loading: true, error: null })
+    try {
+      const graphqlSchema = buildSchema(sdl)
+      const introspectionData = introspectionFromSchema(graphqlSchema)
+      const parsed = parseIntrospectionSchema(introspectionData)
+      setState({ schema: parsed, loading: false, error: null })
+    } catch (e) {
+      setState({
+        schema: null,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Failed to parse SDL schema',
+      })
+    }
+  }, [])
+
   const clearSchema = useCallback(() => {
     setState({ schema: null, loading: false, error: null })
   }, [])
 
-  return { ...state, autoIntrospect, introspect, loadFromJson, clearSchema }
+  return { ...state, autoIntrospect, introspect, loadFromJson, loadFromSdl, clearSchema }
 }

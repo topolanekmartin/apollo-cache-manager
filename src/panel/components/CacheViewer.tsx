@@ -1,14 +1,17 @@
 import { type FC, useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import type { ParsedSchema } from '../types/schema'
+import { CacheEditDialog } from './CacheEditDialog'
 
 const ROOT_KEYS = ['ROOT_QUERY', 'ROOT_MUTATION'] as const
 
 interface CacheViewerProps {
   cacheData: Record<string, unknown> | null
   loading: boolean
-  onRefresh: () => void
+  onRefresh: () => Promise<void>
   onEvict: (cacheId: string) => Promise<boolean>
   onWriteCacheData: (cacheId: string, data: Record<string, unknown>, typeName: string) => Promise<boolean>
   onResetCache: () => Promise<boolean>
+  schema?: ParsedSchema | null
 }
 
 interface CacheEntry {
@@ -24,15 +27,13 @@ export const CacheViewer: FC<CacheViewerProps> = ({
   onEvict,
   onWriteCacheData,
   onResetCache,
+  schema,
 }) => {
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editJson, setEditJson] = useState('')
-  const [editError, setEditError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [dialogState, setDialogState] = useState<{ entry: CacheEntry; mode: 'edit' | 'duplicate' } | null>(null)
 
   const cacheDataRef = useRef(cacheData)
   cacheDataRef.current = cacheData
@@ -125,46 +126,51 @@ export const CacheViewer: FC<CacheViewerProps> = ({
   )
 
   const handleCopy = useCallback((entry: CacheEntry) => {
-    navigator.clipboard.writeText(JSON.stringify(entry.data, null, 2))
+    const text = JSON.stringify(entry.data, null, 2)
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
     setCopiedId(entry.id)
     setTimeout(() => setCopiedId(null), 1500)
   }, [])
 
+  const handleDuplicate = useCallback((entry: CacheEntry) => {
+    setDialogState({ entry, mode: 'duplicate' })
+  }, [])
+
   const handleStartEdit = useCallback((entry: CacheEntry) => {
-    setEditingId(entry.id)
-    setEditJson(JSON.stringify(entry.data, null, 2))
-    setEditError(null)
+    setDialogState({ entry, mode: 'edit' })
   }, [])
 
-  const handleCancelEdit = useCallback(() => {
-    setEditingId(null)
-    setEditJson('')
-    setEditError(null)
-  }, [])
+  const handleDialogSave = useCallback(
+    async (cacheId: string, data: Record<string, unknown>, typeName: string) => {
+      const success = await onWriteCacheData(cacheId, data, typeName)
+      if (!success) return false
 
-  const handleSaveEdit = useCallback(
-    async (entryId: string) => {
-      setEditError(null)
-      setSaving(true)
-      try {
-        const parsed = JSON.parse(editJson) as Record<string, unknown>
-        const typeName = (parsed.__typename as string) ?? entryId.split(':')[0] ?? 'Unknown'
-        const success = await onWriteCacheData(entryId, parsed, typeName)
-        if (success) {
-          setEditingId(null)
-          setEditJson('')
-          onRefresh()
-        } else {
-          setEditError('Write failed')
-        }
-      } catch (e) {
-        setEditError(e instanceof Error ? e.message : 'Invalid JSON')
-      } finally {
-        setSaving(false)
+      await onRefresh()
+
+      // For duplicate, scroll to the new entry
+      if (dialogState?.mode === 'duplicate') {
+        const typename = (data.__typename as string) ?? cacheId.split(':')[0] ?? 'Unknown'
+        setExpandedGroup(typename)
+        setExpandedId(cacheId)
+        scrollToRef.current = cacheId
       }
+
+      setDialogState(null)
+      return true
     },
-    [editJson, onWriteCacheData, onRefresh],
+    [onWriteCacheData, onRefresh, dialogState],
   )
+
+  const handleDialogClose = useCallback(() => {
+    setDialogState(null)
+  }, [])
 
   const handleResetCache = useCallback(async () => {
     if (!confirm('Reset entire Apollo cache? The app will refetch all active queries.')) return
@@ -257,10 +263,17 @@ export const CacheViewer: FC<CacheViewerProps> = ({
           className="px-1 text-sm text-panel-text-muted hover:text-panel-text transition-colors"
           title="Copy JSON to clipboard"
         >
-          {copiedId === entry.id ? 'copied!' : 'duplicate'}
+          {copiedId === entry.id ? 'copied!' : 'copy'}
         </button>
         {!readOnly && (
           <>
+            <button
+              onClick={() => handleDuplicate(entry)}
+              className="px-1 text-sm text-panel-text-muted hover:text-panel-text transition-colors"
+              title="Duplicate entry in cache"
+            >
+              duplicate
+            </button>
             <button
               onClick={() => handleStartEdit(entry)}
               className="px-1 text-sm text-panel-accent hover:text-panel-accent-hover transition-colors"
@@ -279,49 +292,16 @@ export const CacheViewer: FC<CacheViewerProps> = ({
         )}
       </div>
     ),
-    [copiedId, handleCopy, handleStartEdit, handleEvict],
+    [copiedId, handleCopy, handleDuplicate, handleStartEdit, handleEvict],
   )
 
   const renderEntryContent = useCallback(
-    (entry: CacheEntry) => {
-      if (editingId === entry.id) {
-        return (
-          <div className="ml-4 py-1 space-y-1">
-            <textarea
-              value={editJson}
-              onChange={(e) => setEditJson(e.target.value)}
-              className="w-full h-48 px-2 py-1 text-sm font-mono rounded bg-panel-input-bg border border-panel-border text-panel-text focus:outline-none focus:border-panel-accent resize-y"
-              spellCheck={false}
-            />
-            {editError && (
-              <div className="text-sm text-panel-error">{editError}</div>
-            )}
-            <div className="flex gap-1">
-              <button
-                onClick={() => handleSaveEdit(entry.id)}
-                disabled={saving}
-                className="px-2 py-0.5 text-sm rounded bg-panel-accent text-white hover:bg-panel-accent-hover disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={handleCancelEdit}
-                className="px-2 py-0.5 text-sm rounded bg-panel-border text-panel-text-muted hover:text-panel-text transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )
-      }
-
-      return (
-        <div className="ml-4 py-1 text-sm">
-          {renderValue(entry.data)}
-        </div>
-      )
-    },
-    [editingId, editJson, editError, saving, handleSaveEdit, handleCancelEdit, renderValue],
+    (entry: CacheEntry) => (
+      <div className="ml-4 py-1 text-sm">
+        {renderValue(entry.data)}
+      </div>
+    ),
+    [renderValue],
   )
 
   const hasNoResults = filteredRootEntries.length === 0 && filteredGroups.size === 0
@@ -431,6 +411,17 @@ export const CacheViewer: FC<CacheViewerProps> = ({
           )
         })}
       </div>
+
+      {dialogState && (
+        <CacheEditDialog
+          entry={dialogState.entry}
+          mode={dialogState.mode}
+          schema={schema ?? null}
+          cacheData={cacheData}
+          onSave={handleDialogSave}
+          onClose={handleDialogClose}
+        />
+      )}
     </div>
   )
 }

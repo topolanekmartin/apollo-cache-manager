@@ -34,13 +34,13 @@ export const App: FC = () => {
     }
   }, [connection.detected]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-introspect schema on first Mock tab visit
+  // Auto-introspect schema when Apollo is detected (needed for both Cache edit forms and Mock tab)
   useEffect(() => {
-    if (activeTab === 'mock' && !schemaAttempted && connection.detected && !schemaState.schema && !schemaState.loading) {
+    if (!schemaAttempted && connection.detected && !schemaState.schema && !schemaState.loading) {
       setSchemaAttempted(true)
       schemaState.autoIntrospect()
     }
-  }, [activeTab, schemaAttempted, connection.detected, schemaState.schema, schemaState.loading, schemaState.autoIntrospect])
+  }, [schemaAttempted, connection.detected, schemaState.schema, schemaState.loading, schemaState.autoIntrospect])
 
   const handleWrite = useCallback(
     async (fragmentString: string, data: Record<string, unknown>, typeName: string, cacheId: string) => {
@@ -148,14 +148,17 @@ export const App: FC = () => {
             {/* Tab content */}
             <div className="flex-1 min-h-0">
               {activeTab === 'cache' && (
-                <CacheViewer
-                  cacheData={cacheOps.cacheData}
-                  loading={cacheOps.loading}
-                  onRefresh={cacheOps.readCache}
-                  onEvict={cacheOps.evictEntry}
-                  onWriteCacheData={cacheOps.writeCacheData}
-                  onResetCache={cacheOps.resetCache}
-                />
+                <CacheDataProvider value={cacheOps.cacheData}>
+                  <CacheViewer
+                    cacheData={cacheOps.cacheData}
+                    loading={cacheOps.loading}
+                    onRefresh={cacheOps.readCache}
+                    onEvict={cacheOps.evictEntry}
+                    onWriteCacheData={cacheOps.writeCacheData}
+                    onResetCache={cacheOps.resetCache}
+                    schema={schemaState.schema}
+                  />
+                </CacheDataProvider>
               )}
 
               {activeTab === 'mock' && (
@@ -221,6 +224,7 @@ export const App: FC = () => {
                               hasSchema={false}
                               onIntrospect={schemaState.introspect}
                               onLoadJson={schemaState.loadFromJson}
+                              onLoadSdl={schemaState.loadFromSdl}
                               onClear={schemaState.clearSchema}
                             />
                           </div>

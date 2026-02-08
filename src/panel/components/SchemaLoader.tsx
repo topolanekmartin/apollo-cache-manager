@@ -6,6 +6,7 @@ interface SchemaLoaderProps {
   hasSchema: boolean
   onIntrospect: (endpoint: string, headers?: Record<string, string>) => void
   onLoadJson: (json: unknown) => void
+  onLoadSdl: (sdl: string) => void
   onClear: () => void
 }
 
@@ -15,6 +16,7 @@ export const SchemaLoader: FC<SchemaLoaderProps> = ({
   hasSchema,
   onIntrospect,
   onLoadJson,
+  onLoadSdl,
   onClear,
 }) => {
   const [endpoint, setEndpoint] = useState('')
@@ -40,11 +42,16 @@ export const SchemaLoader: FC<SchemaLoaderProps> = ({
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
-      try {
-        const json = JSON.parse(ev.target?.result as string)
-        onLoadJson(json)
-      } catch {
-        // ignore parse error
+      const text = ev.target?.result as string
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      if (ext === 'graphql' || ext === 'gql') {
+        onLoadSdl(text)
+      } else {
+        try {
+          onLoadJson(JSON.parse(text))
+        } catch {
+          // ignore parse error
+        }
       }
     }
     reader.readAsText(file)
@@ -97,12 +104,12 @@ export const SchemaLoader: FC<SchemaLoaderProps> = ({
           onClick={() => fileInputRef.current?.click()}
           className="text-sm text-panel-text-muted hover:text-panel-text transition-colors"
         >
-          Upload JSON
+          Upload schema
         </button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json"
+          accept=".json,.graphql,.gql"
           onChange={handleFileUpload}
           className="hidden"
         />

@@ -32,7 +32,8 @@ export const ObjectField: FC<ObjectFieldProps> = ({
   const cacheData = useCacheData()
   const isRef = value != null && '__ref' in value && typeof value.__ref === 'string'
   const [mode, setMode] = useState<Mode>(isRef ? 'reference' : 'create')
-  const [expanded, setExpanded] = useState(false)
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
+  const expanded = userExpanded ?? false
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const entities = useMemo(
@@ -55,7 +56,7 @@ export const ObjectField: FC<ObjectFieldProps> = ({
       const defaults = buildEmptyFormData(fields, schema)
       onChange({ __typename: typeName, ...defaults })
     }
-    setExpanded(!expanded)
+    setUserExpanded(!expanded)
   }, [expanded, value, fields, schema, typeName, onChange])
 
   const handleFieldChange = useCallback(
@@ -70,7 +71,7 @@ export const ObjectField: FC<ObjectFieldProps> = ({
 
   const handleSetNull = useCallback(() => {
     onChange(null)
-    setExpanded(false)
+    setUserExpanded(null)
   }, [onChange])
 
   const handleModeSwitch = useCallback(
@@ -79,11 +80,11 @@ export const ObjectField: FC<ObjectFieldProps> = ({
       if (newMode === 'create') {
         const defaults = buildEmptyFormData(fields, schema)
         onChange({ __typename: typeName, ...defaults })
-        setExpanded(true)
+        setUserExpanded(true)
       } else {
         // Switching to reference mode - clear value until user picks one
         onChange(null)
-        setExpanded(false)
+        setUserExpanded(null)
       }
     },
     [fields, schema, typeName, onChange],
@@ -106,6 +107,7 @@ export const ObjectField: FC<ObjectFieldProps> = ({
           mode={mode}
           onModeChange={setMode}
           entityCount={entities.length}
+          selectedRef={isRef ? (value?.__ref as string) : null}
         />
         {mode === 'create' ? (
           <input
@@ -149,6 +151,7 @@ export const ObjectField: FC<ObjectFieldProps> = ({
           mode={mode}
           onModeChange={handleModeSwitch}
           entityCount={entities.length}
+          selectedRef={isRef ? (value?.__ref as string) : null}
         />
         {mode === 'create' && (
           <button
@@ -207,13 +210,18 @@ interface ModeToggleProps {
   mode: Mode
   onModeChange: (mode: Mode) => void
   entityCount: number
+  selectedRef: string | null
 }
 
-const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) => {
+const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, selectedRef }) => {
   const btnBase = 'px-2 py-0.5 text-xs rounded-sm transition-colors'
   const activeClass = 'bg-panel-accent text-panel-bg font-medium'
   const inactiveClass = 'bg-panel-surface text-panel-text-muted hover:text-panel-text border border-panel-border'
   const disabledClass = 'bg-panel-surface text-panel-text-muted/50 border border-panel-border cursor-not-allowed'
+
+  const existingLabel = selectedRef
+    ? `Use existing · ${selectedRef}`
+    : `Use existing${entityCount > 0 ? ` (${entityCount})` : ''}`
 
   return (
     <div className="flex gap-px">
@@ -227,7 +235,7 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) =>
         onClick={() => entityCount > 0 && onModeChange('reference')}
         disabled={entityCount === 0}
         title={entityCount === 0 ? 'No matching entities in cache' : `${entityCount} entities available`}
-        className={`${btnBase} rounded-l-none ${
+        className={`${btnBase} rounded-l-none max-w-[200px] truncate ${
           mode === 'reference'
             ? activeClass
             : entityCount === 0
@@ -235,7 +243,7 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount }) =>
               : inactiveClass
         }`}
       >
-        Use existing{entityCount > 0 ? ` (${entityCount})` : ''}
+        {existingLabel}
       </button>
     </div>
   )

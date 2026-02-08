@@ -44,15 +44,17 @@ export function sendAndWait<T extends ExtensionMessage>(
   timeoutMs = 10000,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    let cleanup: (() => void) | undefined
+
     const timer = setTimeout(() => {
-      cleanup()
+      cleanup?.()
       reject(new Error(`Timeout waiting for ${responseType}`))
     }, timeoutMs)
 
-    const cleanup = onMessage((msg) => {
+    cleanup = onMessage((msg) => {
       if (msg.type === responseType) {
         clearTimeout(timer)
-        cleanup()
+        cleanup?.()
         resolve(msg as T)
       }
     })

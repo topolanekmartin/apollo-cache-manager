@@ -21,7 +21,9 @@ chrome.runtime.onConnect.addListener((port) => {
     chrome.tabs.sendMessage(targetTabId, {
       source: 'apollo-cache-manager',
       message: msg.message,
-    } satisfies RuntimeMessage)
+    } satisfies RuntimeMessage).catch(() => {
+      // Content script not yet loaded — expected on initial connection
+    })
   })
 
   port.onDisconnect.addListener(() => {
