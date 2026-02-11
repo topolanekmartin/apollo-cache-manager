@@ -1,7 +1,7 @@
 import { getIntrospectionQuery } from 'graphql'
 import gql from 'graphql-tag'
 import { MSG } from '../shared/messageTypes'
-import type { BridgeMessage, ExtensionMessage } from '../shared/messageTypes'
+import type { BridgeMessage, ExtensionMessage, MutationMockDef } from '../shared/messageTypes'
 
 declare global {
   interface Window {
@@ -134,6 +134,29 @@ function extractEndpointUri(client: ApolloClientLike): string | null {
 
   return findUri(client.link)
 }
+
+// Minimal Observable for mock link responses (duck-typed for Apollo Link)
+class SimpleObservable<T> {
+  private _subscribe: (observer: { next: (v: T) => void; complete: () => void; error: (e: unknown) => void }) => void
+  constructor(subscribe: (observer: { next: (v: T) => void; complete: () => void; error: (e: unknown) => void }) => void) {
+    this._subscribe = subscribe
+  }
+  subscribe(observer: { next: (v: T) => void; complete: () => void; error: (e: unknown) => void }) {
+    this._subscribe(observer)
+    return { unsubscribe: () => {} }
+  }
+  // Apollo Link also calls forEach in some code paths
+  forEach(fn: (v: T) => void) {
+    return new Promise<void>((resolve, reject) => {
+      this.subscribe({ next: fn, complete: resolve, error: reject })
+    })
+  }
+}
+
+// Mutation mock state
+const activeMocks = new Map<string, MutationMockDef>()
+let mockLinkInstalled = false
+let originalLink: unknown = null
 
 function sendToContent(message: ExtensionMessage) {
   const bridgeMsg: BridgeMessage = {
@@ -359,6 +382,104 @@ async function handleMessage(msg: ExtensionMessage) {
           payload: {
             success: false,
             error: e instanceof Error ? e.message : 'Reset cache failed',
+          },
+        })
+      }
+      break
+    }
+
+    case MSG.INSTALL_MOCK_LINK: {
+      try {
+        const client = getApolloClient()
+        if (!client) throw new Error('Apollo Client not found')
+
+        if (mockLinkInstalled) {
+          sendToContent({
+            type: MSG.INSTALL_MOCK_LINK_RESULT,
+            payload: { success: true },
+          })
+          break
+        }
+
+        originalLink = client.link
+        const origLink = originalLink as { request?: (op: unknown, fwd: unknown) => unknown }
+
+        client.link = {
+          request(operation: Record<string, unknown>, forward: (op: unknown) => unknown) {
+            const queryDoc = operation.query as { definitions?: Array<{ operation?: string }> } | undefined
+            const isMutation = queryDoc?.definitions?.[0]?.operation === 'mutation'
+            const opName = (operation.operationName as string) ?? ''
+
+            if (isMutation && opName && activeMocks.has(opName)) {
+              const mock = activeMocks.get(opName)!
+              if (mock.active) {
+                sendToContent({
+                  type: MSG.MUTATION_INTERCEPTED,
+                  payload: {
+                    operationName: opName,
+                    mockId: mock.id,
+                    timestamp: Date.now(),
+                  },
+                })
+
+                return new SimpleObservable((observer) => {
+                  const respond = () => {
+                    observer.next({ data: mock.response })
+                    observer.complete()
+                  }
+                  if (mock.delay > 0) {
+                    setTimeout(respond, mock.delay)
+                  } else {
+                    respond()
+                  }
+                })
+              }
+            }
+
+            // Forward to original link
+            if (origLink?.request) {
+              return origLink.request(operation, forward)
+            }
+            return forward(operation)
+          },
+        }
+
+        mockLinkInstalled = true
+        sendToContent({
+          type: MSG.INSTALL_MOCK_LINK_RESULT,
+          payload: { success: true },
+        })
+      } catch (e) {
+        sendToContent({
+          type: MSG.INSTALL_MOCK_LINK_RESULT,
+          payload: {
+            success: false,
+            error: e instanceof Error ? e.message : 'Install mock link failed',
+          },
+        })
+      }
+      break
+    }
+
+    case MSG.UPDATE_MUTATION_MOCKS: {
+      try {
+        const { mocks } = msg.payload
+        activeMocks.clear()
+        for (const mock of mocks) {
+          if (mock.active) {
+            activeMocks.set(mock.operationName, mock)
+          }
+        }
+        sendToContent({
+          type: MSG.UPDATE_MUTATION_MOCKS_RESULT,
+          payload: { success: true },
+        })
+      } catch (e) {
+        sendToContent({
+          type: MSG.UPDATE_MUTATION_MOCKS_RESULT,
+          payload: {
+            success: false,
+            error: e instanceof Error ? e.message : 'Update mocks failed',
           },
         })
       }

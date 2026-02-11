@@ -19,6 +19,13 @@ export enum MSG {
   WRITE_CACHE_DATA_RESULT = 'WRITE_CACHE_DATA_RESULT',
   RESET_CACHE = 'RESET_CACHE',
   RESET_CACHE_RESULT = 'RESET_CACHE_RESULT',
+
+  // Mutation mocking
+  INSTALL_MOCK_LINK = 'INSTALL_MOCK_LINK',
+  INSTALL_MOCK_LINK_RESULT = 'INSTALL_MOCK_LINK_RESULT',
+  UPDATE_MUTATION_MOCKS = 'UPDATE_MUTATION_MOCKS',
+  UPDATE_MUTATION_MOCKS_RESULT = 'UPDATE_MUTATION_MOCKS_RESULT',
+  MUTATION_INTERCEPTED = 'MUTATION_INTERCEPTED',
 }
 
 export interface DetectApolloMessage {
@@ -119,6 +126,45 @@ export interface ResetCacheResultMessage {
   payload: { success: boolean; error?: string }
 }
 
+// Mutation mocking
+
+export interface MutationMockDef {
+  id: string
+  operationName: string
+  response: Record<string, unknown>
+  active: boolean
+  delay: number
+  returnTypeName?: string
+}
+
+export interface InstallMockLinkMessage {
+  type: MSG.INSTALL_MOCK_LINK
+}
+
+export interface InstallMockLinkResultMessage {
+  type: MSG.INSTALL_MOCK_LINK_RESULT
+  payload: { success: boolean; error?: string }
+}
+
+export interface UpdateMutationMocksMessage {
+  type: MSG.UPDATE_MUTATION_MOCKS
+  payload: { mocks: MutationMockDef[] }
+}
+
+export interface UpdateMutationMocksResultMessage {
+  type: MSG.UPDATE_MUTATION_MOCKS_RESULT
+  payload: { success: boolean; error?: string }
+}
+
+export interface MutationInterceptedMessage {
+  type: MSG.MUTATION_INTERCEPTED
+  payload: {
+    operationName: string
+    mockId: string
+    timestamp: number
+  }
+}
+
 export type ExtensionMessage =
   | DetectApolloMessage
   | ApolloDetectedMessage
@@ -135,6 +181,11 @@ export type ExtensionMessage =
   | WriteCacheDataResultMessage
   | ResetCacheMessage
   | ResetCacheResultMessage
+  | InstallMockLinkMessage
+  | InstallMockLinkResultMessage
+  | UpdateMutationMocksMessage
+  | UpdateMutationMocksResultMessage
+  | MutationInterceptedMessage
 
 // Wrapper for messages sent via window.postMessage
 export interface BridgeMessage {
