@@ -1,39 +1,26 @@
-import { type FC, useState, useCallback, useMemo, useEffect } from 'react'
+import { type FC, useState, useCallback, useEffect } from 'react'
 import { ConnectionStatus } from './components/ConnectionStatus'
-import { SchemaLoader } from './components/SchemaLoader'
-import { SchemaExplorer } from './components/SchemaExplorer'
-import { FragmentComposer } from './components/FragmentComposer'
-import { CacheDataProvider } from './contexts/CacheDataContext'
-import { CacheViewer } from './components/CacheViewer'
-import { Presets } from './components/Presets'
-import { MutationMocker } from './components/MutationMocker'
-import { MutationMockEditor } from './components/MutationMockEditor'
+import { SchemaSourceSelector } from './components/SchemaSourceSelector'
+import { CacheTab } from './components/CacheTab'
+import { ScenariosTab } from './components/ScenariosTab'
 import { useApolloConnection } from './hooks/useApolloConnection'
 import { useSchemaIntrospection } from './hooks/useSchemaIntrospection'
 import { useCacheOperations } from './hooks/useCacheOperations'
-import { useMutationMocks } from './hooks/useMutationMocks'
-import type { MutationMockDef } from '../shared/messageTypes'
+import { useDraft } from './hooks/useDraft'
+import { useScenarios } from './hooks/useScenarios'
+import type { Scenario } from './types/draft'
 
-type Tab = 'cache' | 'mock' | 'presets'
-type MockSubTab = 'fragments' | 'mutations'
+type Tab = 'cache' | 'scenarios'
 
 export const App: FC = () => {
   const connection = useApolloConnection()
   const schemaState = useSchemaIntrospection()
   const cacheOps = useCacheOperations()
-  const mutationMocks = useMutationMocks(connection.detected)
+  const draft = useDraft()
+  const scenarios = useScenarios()
 
   const [activeTab, setActiveTab] = useState<Tab>('cache')
-  const [mockSubTab, setMockSubTab] = useState<MockSubTab>('fragments')
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [editingMock, setEditingMock] = useState<MutationMockDef | null | undefined>(undefined)
-  // undefined = editor closed, null = new mock, MutationMockDef = editing existing
-  const [lastWrittenEntry, setLastWrittenEntry] = useState<{
-    typeName: string
-    cacheId: string
-    fragmentString: string
-    data: Record<string, unknown>
-  } | null>(null)
+  const [selectedEntityKey, setSelectedEntityKey] = useState<string | null>(null)
   const [schemaAttempted, setSchemaAttempted] = useState(false)
 
   // Auto-load cache on mount when Apollo is detected
@@ -43,7 +30,7 @@ export const App: FC = () => {
     }
   }, [connection.detected]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-introspect schema when Apollo is detected (needed for both Cache edit forms and Mock tab)
+  // Auto-introspect schema when Apollo is detected
   useEffect(() => {
     if (!schemaAttempted && connection.detected && !schemaState.schema && !schemaState.loading) {
       setSchemaAttempted(true)
@@ -51,40 +38,14 @@ export const App: FC = () => {
     }
   }, [schemaAttempted, connection.detected, schemaState.schema, schemaState.loading, schemaState.autoIntrospect])
 
-  const handleWrite = useCallback(
-    async (fragmentString: string, data: Record<string, unknown>, typeName: string, cacheId: string) => {
-      const success = await cacheOps.writeFragment(fragmentString, data, typeName, cacheId)
-      if (success) {
-        setLastWrittenEntry({ typeName, cacheId, fragmentString, data })
-      }
-      return success
-    },
-    [cacheOps],
-  )
-
-  const handleApplyPreset = useCallback(
-    async (entries: Array<{ typeName: string; cacheId: string; fragmentString: string; data: Record<string, unknown> }>) => {
-      for (const entry of entries) {
-        await cacheOps.writeFragment(entry.fragmentString, entry.data, entry.typeName, entry.cacheId)
-      }
-    },
-    [cacheOps],
-  )
-
-  const currentPresetEntry = useMemo(() => lastWrittenEntry, [lastWrittenEntry])
-
-  const handleSaveMock = useCallback(
-    async (mock: MutationMockDef) => {
-      // Check if this is an update or new mock
-      if (mutationMocks.mocks.some((m) => m.id === mock.id)) {
-        await mutationMocks.updateMock(mock)
-      } else {
-        await mutationMocks.addMock(mock)
-      }
-      setEditingMock(undefined)
-    },
-    [mutationMocks],
-  )
+  // Cross-tab: Apply scenario -> load into draft, switch to Cache tab
+  const handleApplyScenario = useCallback((scenario: Scenario) => {
+    draft.loadFromScenario(scenario.entities)
+    setActiveTab('cache')
+    if (scenario.entities.length > 0) {
+      setSelectedEntityKey(scenario.entities[0].entityKey)
+    }
+  }, [draft])
 
   return (
     <div className="flex flex-col h-screen">
@@ -96,6 +57,16 @@ export const App: FC = () => {
           clientCount={connection.clientCount}
           checking={connection.checking}
           onRetry={connection.retry}
+        />
+
+        <SchemaSourceSelector
+          source={schemaState.source}
+          loading={schemaState.loading}
+          error={schemaState.error}
+          onAutoIntrospect={schemaState.autoIntrospect}
+          onIntrospect={schemaState.introspect}
+          onLoadFromJson={schemaState.loadFromJson}
+          onLoadFromSdl={schemaState.loadFromSdl}
         />
       </div>
 
@@ -113,215 +84,68 @@ export const App: FC = () => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex min-h-0">
-          {/* Sidebar - Schema Explorer (only when Mock tab active + fragments sub-tab + schema loaded) */}
-          {activeTab === 'mock' && mockSubTab === 'fragments' && schemaState.schema && (
-            <div className="w-[220px] border-r border-panel-border flex flex-col">
-              <div className="flex-1 overflow-hidden p-2">
-                <SchemaExplorer
-                  schema={schemaState.schema}
-                  onSelectType={setSelectedType}
-                  selectedType={selectedType}
-                />
-              </div>
-            </div>
-          )}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Tabs */}
+          <div className="flex-none flex border-b border-panel-border">
+            {(
+              [
+                ['cache', 'Cache'],
+                ['scenarios', 'Scenarios'],
+              ] as const
+            ).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => {
+                  setActiveTab(tab)
+                  if (tab === 'cache') cacheOps.readCache()
+                }}
+                className={`px-4 py-1.5 text-sm transition-colors ${
+                  activeTab === tab
+                    ? 'text-panel-accent border-b-2 border-panel-accent'
+                    : 'text-panel-text-muted hover:text-panel-text'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
 
-          {/* Main panel */}
-          <div className="flex-1 flex flex-col min-w-0">
-            {/* Tabs */}
-            <div className="flex-none flex border-b border-panel-border">
-              {(
-                [
-                  ['cache', 'Cache'],
-                  ['mock', 'Mock'],
-                  ['presets', 'Presets'],
-                ] as const
-              ).map(([tab, label]) => (
+            {cacheOps.error && (
+              <div className="flex items-center ml-auto mr-2 text-sm text-panel-error">
+                {cacheOps.error}
                 <button
-                  key={tab}
-                  onClick={() => {
-                    setActiveTab(tab)
-                    if (tab === 'cache') cacheOps.readCache()
-                  }}
-                  className={`px-4 py-1.5 text-sm transition-colors ${
-                    activeTab === tab
-                      ? 'text-panel-accent border-b-2 border-panel-accent'
-                      : 'text-panel-text-muted hover:text-panel-text'
-                  }`}
+                  onClick={cacheOps.clearError}
+                  className="ml-1 text-panel-error hover:text-panel-error/80"
                 >
-                  {label}
+                  x
                 </button>
-              ))}
+              </div>
+            )}
+          </div>
 
-              {cacheOps.error && (
-                <div className="flex items-center ml-auto mr-2 text-sm text-panel-error">
-                  {cacheOps.error}
-                  <button
-                    onClick={cacheOps.clearError}
-                    className="ml-1 text-panel-error hover:text-panel-error/80"
-                  >
-                    x
-                  </button>
-                </div>
-              )}
-            </div>
+          {/* Tab content */}
+          <div className="flex-1 min-h-0">
+            {activeTab === 'cache' && (
+              <CacheTab
+                cacheData={cacheOps.cacheData}
+                loading={cacheOps.loading}
+                onRefresh={cacheOps.readCache}
+                onWriteCacheData={cacheOps.writeCacheData}
+                onEvict={cacheOps.evictEntry}
+                onResetCache={cacheOps.resetCache}
+                schema={schemaState.schema ?? null}
+                draft={draft}
+                scenarios={scenarios}
+                selectedEntityKey={selectedEntityKey}
+                onSelectEntity={setSelectedEntityKey}
+              />
+            )}
 
-            {/* Tab content */}
-            <div className="flex-1 min-h-0">
-              {activeTab === 'cache' && (
-                <CacheDataProvider value={cacheOps.cacheData}>
-                  <CacheViewer
-                    cacheData={cacheOps.cacheData}
-                    loading={cacheOps.loading}
-                    onRefresh={cacheOps.readCache}
-                    onEvict={cacheOps.evictEntry}
-                    onWriteCacheData={cacheOps.writeCacheData}
-                    onResetCache={cacheOps.resetCache}
-                    schema={schemaState.schema}
-                  />
-                </CacheDataProvider>
-              )}
-
-              {activeTab === 'mock' && (
-                <div className="flex flex-col h-full">
-                  {/* Sub-tabs */}
-                  <div className="flex-none flex border-b border-panel-border bg-panel-surface/50">
-                    {(
-                      [
-                        ['fragments', 'Fragments'],
-                        ['mutations', 'Mutations'],
-                      ] as const
-                    ).map(([tab, label]) => (
-                      <button
-                        key={tab}
-                        onClick={() => setMockSubTab(tab)}
-                        className={`px-3 py-1 text-sm transition-colors ${
-                          mockSubTab === tab
-                            ? 'text-panel-accent border-b-2 border-panel-accent'
-                            : 'text-panel-text-muted hover:text-panel-text'
-                        }`}
-                      >
-                        {label}
-                        {tab === 'mutations' && mutationMocks.mocks.filter((m) => m.active).length > 0 && (
-                          <span className="ml-1 text-xs text-panel-success">
-                            ({mutationMocks.mocks.filter((m) => m.active).length})
-                          </span>
-                        )}
-                      </button>
-                    ))}
-
-                    {/* Schema status */}
-                    {schemaState.schema && (
-                      <div className="ml-auto flex items-center gap-2 px-3">
-                        <span className="text-sm text-panel-success">Schema loaded</span>
-                        <button
-                          onClick={schemaState.clearSchema}
-                          className="text-sm text-panel-text-muted hover:text-panel-text transition-colors"
-                        >
-                          clear
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Sub-tab content */}
-                  <div className="flex-1 min-h-0">
-                    {mockSubTab === 'fragments' && (
-                      schemaState.schema ? (
-                        <CacheDataProvider value={cacheOps.cacheData}>
-                          <FragmentComposer
-                            schema={schemaState.schema}
-                            selectedType={selectedType}
-                            onWrite={handleWrite}
-                          />
-                        </CacheDataProvider>
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="space-y-3 max-w-sm w-full px-4">
-                            {schemaState.loading ? (
-                              <div className="text-center">
-                                <div className="text-panel-text-muted text-base">Loading schema...</div>
-                                <div className="text-panel-text-muted text-sm mt-1">
-                                  Auto-introspecting via Apollo Client
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="text-center space-y-1">
-                                  <div className="text-panel-text-muted text-base">
-                                    {schemaState.error ? 'Auto-introspection failed' : 'Schema required for mocking'}
-                                  </div>
-                                  {schemaState.error && (
-                                    <div className="text-sm text-panel-error">{schemaState.error}</div>
-                                  )}
-                                </div>
-                                <div className="flex justify-center">
-                                  <button
-                                    onClick={() => {
-                                      setSchemaAttempted(false)
-                                    }}
-                                    className="px-3 py-1 text-sm rounded bg-panel-accent text-panel-bg font-medium hover:bg-panel-accent-hover transition-colors"
-                                  >
-                                    Retry auto-introspect
-                                  </button>
-                                </div>
-                                <div className="border-t border-panel-border pt-3">
-                                  <div className="text-sm text-panel-text-muted text-center mb-2">
-                                    Or load schema manually:
-                                  </div>
-                                  <SchemaLoader
-                                    loading={schemaState.loading}
-                                    error={null}
-                                    hasSchema={false}
-                                    onIntrospect={schemaState.introspect}
-                                    onLoadJson={schemaState.loadFromJson}
-                                    onLoadSdl={schemaState.loadFromSdl}
-                                    onClear={schemaState.clearSchema}
-                                  />
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    )}
-
-                    {mockSubTab === 'mutations' && (
-                      <MutationMocker
-                        mocks={mutationMocks.mocks}
-                        interceptedLog={mutationMocks.interceptedLog}
-                        linkInstalled={mutationMocks.linkInstalled}
-                        onAdd={() => setEditingMock(null)}
-                        onEdit={(mock) => setEditingMock(mock)}
-                        onDelete={mutationMocks.deleteMock}
-                        onToggle={mutationMocks.toggleMock}
-                        onImport={mutationMocks.importMocks}
-                        onClearLog={mutationMocks.clearLog}
-                        schema={schemaState.schema}
-                      />
-                    )}
-                  </div>
-
-                  {/* Mock editor dialog */}
-                  {editingMock !== undefined && (
-                    <MutationMockEditor
-                      mock={editingMock}
-                      schema={schemaState.schema}
-                      onSave={handleSaveMock}
-                      onClose={() => setEditingMock(undefined)}
-                    />
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'presets' && (
-                <Presets
-                  onApply={handleApplyPreset}
-                  currentEntry={currentPresetEntry}
-                />
-              )}
-            </div>
+            {activeTab === 'scenarios' && (
+              <ScenariosTab
+                scenarios={scenarios}
+                onApplyScenario={handleApplyScenario}
+              />
+            )}
           </div>
         </div>
       )}

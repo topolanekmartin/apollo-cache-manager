@@ -11,6 +11,7 @@ interface TypeFieldFormProps {
   visited: Set<string>
   depth: number
   maxDepth: number
+  modifiedFields?: Set<string>
 }
 
 export const TypeFieldForm: FC<TypeFieldFormProps> = ({
@@ -21,6 +22,7 @@ export const TypeFieldForm: FC<TypeFieldFormProps> = ({
   visited,
   depth,
   maxDepth,
+  modifiedFields,
 }) => {
   return (
     <div className="space-y-2">
@@ -32,6 +34,9 @@ export const TypeFieldForm: FC<TypeFieldFormProps> = ({
         return (
           <div key={field.name} className="space-y-0.5">
             <label className="flex items-center gap-1 text-sm">
+              {modifiedFields?.has(field.name) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0" />
+              )}
               <span className="text-panel-text font-medium">
                 {field.name}
               </span>

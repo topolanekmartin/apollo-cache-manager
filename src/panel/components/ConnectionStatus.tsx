@@ -38,11 +38,14 @@ export const ConnectionStatus: FC<ConnectionStatusProps> = ({
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-panel-surface text-sm">
+    <button
+      onClick={onRetry}
+      className="flex items-center gap-2 px-3 py-1.5 rounded bg-panel-surface text-sm cursor-pointer hover:bg-panel-accent/10 transition-colors"
+    >
       <span className="inline-block w-2 h-2 rounded-full bg-panel-success" />
       <span className="text-panel-success">
         Connected{clientCount > 1 ? ` (${clientCount} clients)` : ''}
       </span>
-    </div>
+    </button>
   )
 }

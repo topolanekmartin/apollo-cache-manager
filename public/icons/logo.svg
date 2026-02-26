@@ -1,26 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <!-- Background circle -->
-  <circle cx="64" cy="64" r="60" fill="#1a1a2e"/>
-  <circle cx="64" cy="64" r="60" stroke="#7c3aed" stroke-width="3"/>
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e1b2e"/>
+      <stop offset="100%" stop-color="#13111c"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Orbit ring -->
-  <ellipse cx="64" cy="64" rx="42" ry="16" stroke="#7c3aed" stroke-width="2.5" stroke-opacity="0.5" transform="rotate(-30 64 64)"/>
+  <!-- Background -->
+  <rect width="128" height="128" rx="28" fill="url(#bgGrad)"/>
 
-  <!-- Cache database symbol -->
-  <ellipse cx="64" cy="44" rx="22" ry="8" fill="#7c3aed" fill-opacity="0.3" stroke="#7c3aed" stroke-width="2"/>
-  <path d="M42 44 v16 c0 4.4 9.8 8 22 8 s22-3.6 22-8 v-16" stroke="#7c3aed" stroke-width="2" fill="none"/>
-  <path d="M42 52 c0 4.4 9.8 8 22 8 s22-3.6 22-8" stroke="#7c3aed" stroke-width="2" fill="none" stroke-opacity="0.6"/>
+  <!-- Subtle outer glow -->
+  <rect width="128" height="128" rx="28" stroke="#7c3aed" stroke-width="1.5" stroke-opacity="0.3" fill="none"/>
 
-  <!-- Rocket / Apollo arrow pointing up -->
-  <path d="M64 28 L58 42 L64 38 L70 42 Z" fill="#a78bfa"/>
+  <!-- Apollo "A" shape / rocket silhouette -->
+  <path d="M64 22 L40 98 L50 98 L56 78 L72 78 L78 98 L88 98 Z"
+        fill="url(#accentGrad)" fill-opacity="0.15"/>
+  <path d="M64 22 L40 98 L50 98 L56 78 L72 78 L78 98 L88 98 Z"
+        stroke="url(#accentGrad)" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
 
-  <!-- Data nodes -->
-  <circle cx="44" cy="78" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
-  <circle cx="64" cy="84" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
-  <circle cx="84" cy="78" r="5" fill="#7c3aed" fill-opacity="0.4" stroke="#a78bfa" stroke-width="1.5"/>
+  <!-- Cache layer 1 (top) - ellipse crossing the A -->
+  <ellipse cx="64" cy="56" rx="16" ry="4.5"
+           fill="#7c3aed" fill-opacity="0.25" stroke="#a78bfa" stroke-width="1.8"/>
 
-  <!-- Connection lines between nodes -->
-  <line x1="49" y1="78" x2="59" y2="84" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.5"/>
-  <line x1="69" y1="84" x2="79" y2="78" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.5"/>
-  <line x1="49" y1="76" x2="79" y2="76" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.3"/>
+  <!-- Cache layer 2 (middle) -->
+  <ellipse cx="64" cy="67" rx="19" ry="4.5"
+           fill="#7c3aed" fill-opacity="0.2" stroke="#a78bfa" stroke-width="1.8"/>
+
+  <!-- Cache layer 3 (bottom - the A crossbar area) -->
+  <ellipse cx="64" cy="78" rx="22" ry="4.5"
+           fill="#7c3aed" fill-opacity="0.15" stroke="#a78bfa" stroke-width="1.8"/>
+
+  <!-- Vertical connectors between cache layers -->
+  <line x1="48" y1="56" x2="42" y2="78" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.3"/>
+  <line x1="80" y1="56" x2="86" y2="78" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.3"/>
+
+  <!-- Rocket tip accent -->
+  <circle cx="64" cy="22" r="2.5" fill="#a78bfa" fill-opacity="0.8"/>
 </svg>
