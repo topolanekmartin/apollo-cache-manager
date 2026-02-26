@@ -5,6 +5,7 @@ import type { UseDraftReturn } from '../hooks/useDraft'
 import { TypeFieldForm } from './TypeFieldForm'
 import { CacheDataProvider } from '../contexts/CacheDataContext'
 import { cacheDataToFormData } from '../utils/cacheDataAdapter'
+import { stripFieldArguments } from '../utils/stripFieldArguments'
 
 interface EntityDetailProps {
   entityKey: string
@@ -202,7 +203,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
           )
         }
 
-        if (depth > 2) {
+        if (depth > 4) {
           return <span className="text-panel-text-muted">{JSON.stringify(value)}</span>
         }
 
@@ -220,7 +221,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
 
       if (Array.isArray(value)) {
         if (value.length === 0) return <span className="text-panel-text-muted">[]</span>
-        if (depth > 2) {
+        if (depth > 4) {
           return <span className="text-panel-text-muted">[{value.length} items]</span>
         }
         return (
@@ -358,15 +359,25 @@ export const EntityDetail: FC<EntityDetailProps> = ({
             <div className="text-sm">
               {displayData && (
                 <div className="ml-3 border-l border-panel-border/50 pl-2">
-                  {Object.entries(displayData as Record<string, unknown>).map(([k, v]) => (
-                    <div key={k} className="flex items-start gap-1 text-sm py-px">
-                      {modifiedFields.has(k) && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1" />
-                      )}
-                      <span className="text-panel-text-muted shrink-0">{k}:</span>
-                      <span className="min-w-0">{renderValue(v, 1)}</span>
-                    </div>
-                  ))}
+                  {Object.entries(displayData as Record<string, unknown>).map(([k, v]) => {
+                    const displayKey = stripFieldArguments(k)
+                    const isParameterized = displayKey !== k
+
+                    return (
+                      <div key={k} className="flex items-start gap-1 text-sm py-px">
+                        {modifiedFields.has(k) && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1" />
+                        )}
+                        <span
+                          className="text-panel-text-muted shrink-0"
+                          title={isParameterized ? k : undefined}
+                        >
+                          {displayKey}:
+                        </span>
+                        <span className="min-w-0">{renderValue(v, 1)}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
