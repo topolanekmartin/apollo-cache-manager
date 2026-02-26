@@ -26,9 +26,16 @@ export function cacheDataToFormData(
     }
   }
 
+  // Build set of schema field names for quick lookup
+  const schemaFieldNames = new Set(fields.map((f) => f.name))
+
   // Copy extra fields not in the schema (preserves data visible in JSON mode)
+  // Skip parameterized keys whose stripped version matches a schema field
+  // (those will be added under the clean name in the next loop)
   for (const key of Object.keys(cacheEntry)) {
     if (key === '__typename') continue
+    const stripped = stripFieldArguments(key)
+    if (stripped !== key && schemaFieldNames.has(stripped)) continue
     result[key] = cacheEntry[key]
   }
 

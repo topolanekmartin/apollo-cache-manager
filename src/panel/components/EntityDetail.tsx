@@ -357,29 +357,62 @@ export const EntityDetail: FC<EntityDetailProps> = ({
             </pre>
           ) : (
             <div className="text-sm">
-              {displayData && (
-                <div className="ml-3 border-l border-panel-border/50 pl-2">
-                  {Object.entries(displayData as Record<string, unknown>).map(([k, v]) => {
-                    const displayKey = stripFieldArguments(k)
-                    const isParameterized = displayKey !== k
+              {displayData && (() => {
+                const entries = Object.entries(displayData as Record<string, unknown>)
 
-                    return (
-                      <div key={k} className="flex items-start gap-1 text-sm py-px">
-                        {modifiedFields.has(k) && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1" />
-                        )}
-                        <span
-                          className="text-panel-text-muted shrink-0"
-                          title={isParameterized ? k : undefined}
-                        >
-                          {displayKey}:
-                        </span>
-                        <span className="min-w-0">{renderValue(v, 1)}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+                // Count how many entries share each stripped key
+                const strippedCounts = new Map<string, number>()
+                for (const [k] of entries) {
+                  const stripped = stripFieldArguments(k)
+                  strippedCounts.set(stripped, (strippedCounts.get(stripped) ?? 0) + 1)
+                }
+
+                // Track seen stripped keys to deduplicate
+                const seenStripped = new Set<string>()
+
+                return (
+                  <div className="ml-3 border-l border-panel-border/50 pl-2">
+                    {entries.map(([k, v]) => {
+                      const stripped = stripFieldArguments(k)
+                      const isParameterized = stripped !== k
+                      const hasDuplicates = (strippedCounts.get(stripped) ?? 0) > 1
+
+                      // If this stripped key was already rendered and there are no duplicates, skip
+                      if (isParameterized && !hasDuplicates && seenStripped.has(stripped)) {
+                        return null
+                      }
+                      seenStripped.add(stripped)
+
+                      // Determine display label
+                      let displayKey: string
+                      if (!isParameterized) {
+                        displayKey = k
+                      } else if (hasDuplicates) {
+                        // Multiple variants — show args to distinguish
+                        const args = k.slice(stripped.length)
+                        displayKey = `${stripped}${args}`
+                      } else {
+                        displayKey = stripped
+                      }
+
+                      return (
+                        <div key={k} className="flex items-start gap-1 text-sm py-px">
+                          {modifiedFields.has(k) && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1" />
+                          )}
+                          <span
+                            className="text-panel-text-muted shrink-0"
+                            title={isParameterized ? k : undefined}
+                          >
+                            {displayKey}:
+                          </span>
+                          <span className="min-w-0">{renderValue(v, 1)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
           )
         )}
