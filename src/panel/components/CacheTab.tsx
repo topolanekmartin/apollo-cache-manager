@@ -21,6 +21,12 @@ interface CacheTabProps {
   scenarios: UseScenariosReturn
   selectedEntityKey: string | null
   onSelectEntity: (key: string | null) => void
+  goBack: () => void
+  goForward: () => void
+  canGoBack: boolean
+  canGoForward: boolean
+  expandedPaths: Set<string>
+  onExpandedPathsChange: (paths: Set<string>) => void
   autoRefresh: boolean
   onAutoRefreshChange: (value: boolean) => void
 }
@@ -37,6 +43,12 @@ export const CacheTab: FC<CacheTabProps> = ({
   scenarios,
   selectedEntityKey,
   onSelectEntity,
+  goBack,
+  goForward,
+  canGoBack,
+  canGoForward,
+  expandedPaths,
+  onExpandedPathsChange,
   autoRefresh,
   onAutoRefreshChange,
 }) => {
@@ -116,6 +128,12 @@ export const CacheTab: FC<CacheTabProps> = ({
               onRequestDisableEditMode={handleRequestDisableEditMode}
               onSelectEntity={handleSelectEntity}
               onEvict={handleEvict}
+              goBack={goBack}
+              goForward={goForward}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              expandedPaths={expandedPaths}
+              onExpandedPathsChange={onExpandedPathsChange}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-panel-text-muted">

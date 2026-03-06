@@ -8,6 +8,7 @@ import { useSchemaIntrospection } from './hooks/useSchemaIntrospection'
 import { useCacheOperations } from './hooks/useCacheOperations'
 import { useDraft } from './hooks/useDraft'
 import { useScenarios } from './hooks/useScenarios'
+import { useNavigationHistory } from './hooks/useNavigationHistory'
 import type { Scenario } from './types/draft'
 
 type Tab = 'cache' | 'scenarios'
@@ -20,7 +21,7 @@ export const App: FC = () => {
   const scenarios = useScenarios()
 
   const [activeTab, setActiveTab] = useState<Tab>('cache')
-  const [selectedEntityKey, setSelectedEntityKey] = useState<string | null>(null)
+  const { currentKey: selectedEntityKey, navigate: navigateToEntity, goBack, goForward, canGoBack, canGoForward, expandedPaths, onExpandedPathsChange } = useNavigationHistory()
   const [schemaAttempted, setSchemaAttempted] = useState(false)
 
   // Auto-load cache on mount when Apollo is detected
@@ -43,9 +44,9 @@ export const App: FC = () => {
     draft.loadFromScenario(scenario.entities)
     setActiveTab('cache')
     if (scenario.entities.length > 0) {
-      setSelectedEntityKey(scenario.entities[0].entityKey)
+      navigateToEntity(scenario.entities[0].entityKey)
     }
-  }, [draft])
+  }, [draft, navigateToEntity])
 
   return (
     <div className="flex flex-col h-screen">
@@ -135,7 +136,13 @@ export const App: FC = () => {
                 draft={draft}
                 scenarios={scenarios}
                 selectedEntityKey={selectedEntityKey}
-                onSelectEntity={setSelectedEntityKey}
+                onSelectEntity={navigateToEntity}
+                goBack={goBack}
+                goForward={goForward}
+                canGoBack={canGoBack}
+                canGoForward={canGoForward}
+                expandedPaths={expandedPaths}
+                onExpandedPathsChange={onExpandedPathsChange}
                 autoRefresh={cacheOps.autoRefresh}
                 onAutoRefreshChange={cacheOps.setAutoRefresh}
               />

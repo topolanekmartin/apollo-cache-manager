@@ -17,6 +17,12 @@ interface EntityDetailProps {
   onRequestDisableEditMode: () => void
   onSelectEntity: (key: string) => void
   onEvict: (entityKey: string) => Promise<void>
+  goBack: () => void
+  goForward: () => void
+  canGoBack: boolean
+  canGoForward: boolean
+  expandedPaths: Set<string>
+  onExpandedPathsChange: (paths: Set<string>) => void
 }
 
 export const EntityDetail: FC<EntityDetailProps> = ({
@@ -29,18 +35,21 @@ export const EntityDetail: FC<EntityDetailProps> = ({
   onRequestDisableEditMode,
   onSelectEntity,
   onEvict,
+  goBack,
+  goForward,
+  canGoBack,
+  canGoForward,
+  expandedPaths,
+  onExpandedPathsChange,
 }) => {
   const [showEvictConfirm, setShowEvictConfirm] = useState(false)
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
 
   const togglePath = useCallback((path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }, [])
+    const next = new Set(expandedPaths)
+    if (next.has(path)) next.delete(path)
+    else next.add(path)
+    onExpandedPathsChange(next)
+  }, [expandedPaths, onExpandedPathsChange])
   const entityData = useMemo(() => {
     if (!cacheData || !cacheData[entityKey]) return null
     return cacheData[entityKey] as Record<string, unknown>
@@ -134,15 +143,6 @@ export const EntityDetail: FC<EntityDetailProps> = ({
 
     return result.length !== fields.length ? result : fields
   }, [entityData, fields, schema])
-
-  // Clear collapsed paths when entity changes
-  const prevEntityForExpandRef = useRef(entityKey)
-  useEffect(() => {
-    if (prevEntityForExpandRef.current !== entityKey) {
-      prevEntityForExpandRef.current = entityKey
-      setExpandedPaths(new Set())
-    }
-  }, [entityKey])
 
   // Track the current entity key to detect entity changes
   const prevEntityKeyRef = useRef(entityKey)
@@ -381,6 +381,23 @@ export const EntityDetail: FC<EntityDetailProps> = ({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex-none flex items-center gap-2 px-3 py-2 border-b border-panel-border">
+        <button
+          onClick={goBack}
+          disabled={!canGoBack}
+          className="px-1.5 py-0.5 text-sm transition-colors disabled:opacity-30 disabled:cursor-default text-panel-text-muted hover:text-panel-text"
+          title="Go back"
+        >
+          ←
+        </button>
+        <button
+          onClick={goForward}
+          disabled={!canGoForward}
+          className="px-1.5 py-0.5 text-sm transition-colors disabled:opacity-30 disabled:cursor-default text-panel-text-muted hover:text-panel-text"
+          title="Go forward"
+        >
+          →
+        </button>
+
         <span className="text-sm font-medium text-panel-text truncate flex-1">
           <span className="text-panel-accent">{entityKey}</span>
         </span>
