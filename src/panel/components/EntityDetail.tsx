@@ -283,27 +283,35 @@ export const EntityDetail: FC<EntityDetailProps> = ({
 
         return (
           <div>
-            <button
-              onClick={() => togglePath(path)}
-              className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
-            >
-              {isExpanded ? '\u25BC' : '\u25B6'}
-            </button>
-            {!isExpanded ? (
-              <span className="text-panel-summary italic"> {'{ ... }'} {keys.length} keys</span>
+            {isExpanded ? (
+              <>
+                <button
+                  onClick={() => togglePath(path)}
+                  className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+                >
+                  {'\u25BC'}
+                </button>
+                <div className="ml-4 border-l border-panel-border/50 pl-3">
+                  {Object.entries(obj).map(([k, v]) => (
+                    <div key={k} className="flex items-start gap-2 py-0.5">
+                      <span className={`shrink-0 ${k === '__typename' ? 'text-panel-typename font-medium' : 'text-panel-field-name'}`}>{k}:</span>
+                      <span className="min-w-0">
+                        {k === '__typename' && typeof v === 'string'
+                          ? <span className="text-panel-typename font-medium">"{v}"</span>
+                          : renderValue(v, depth + 1, `${path}.${k}`)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
-              <div className="ml-4 border-l border-panel-border/50 pl-3">
-                {Object.entries(obj).map(([k, v]) => (
-                  <div key={k} className="flex items-start gap-2 py-0.5">
-                    <span className={`shrink-0 ${k === '__typename' ? 'text-panel-typename font-medium' : 'text-panel-field-name'}`}>{k}:</span>
-                    <span className="min-w-0">
-                      {k === '__typename' && typeof v === 'string'
-                        ? <span className="text-panel-typename font-medium">"{v}"</span>
-                        : renderValue(v, depth + 1, `${path}.${k}`)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={() => togglePath(path)}
+                className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+              >
+                {'\u25B6'}
+                <span className="text-panel-summary italic"> {'{ ... }'} {keys.length} keys</span>
+              </button>
             )}
           </div>
         )
@@ -319,23 +327,31 @@ export const EntityDetail: FC<EntityDetailProps> = ({
 
         return (
           <div>
-            <button
-              onClick={() => togglePath(path)}
-              className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
-            >
-              {isExpanded ? '\u25BC' : '\u25B6'}
-            </button>
-            {!isExpanded ? (
-              <span className="text-panel-summary italic"> {'[ ... ]'} {value.length} items</span>
+            {isExpanded ? (
+              <>
+                <button
+                  onClick={() => togglePath(path)}
+                  className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+                >
+                  {'\u25BC'}
+                </button>
+                <div className="ml-4 border-l border-panel-border/50 pl-3">
+                  {value.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 py-0.5">
+                      <span className="text-panel-field-name shrink-0">{i}:</span>
+                      <span className="min-w-0">{renderValue(item, depth + 1, `${path}[${i}]`)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
-              <div className="ml-4 border-l border-panel-border/50 pl-3">
-                {value.map((item, i) => (
-                  <div key={i} className="flex items-start gap-2 py-0.5">
-                    <span className="text-panel-field-name shrink-0">{i}:</span>
-                    <span className="min-w-0">{renderValue(item, depth + 1, `${path}[${i}]`)}</span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={() => togglePath(path)}
+                className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+              >
+                {'\u25B6'}
+                <span className="text-panel-summary italic"> {'[ ... ]'} {value.length} items</span>
+              </button>
             )}
           </div>
         )
