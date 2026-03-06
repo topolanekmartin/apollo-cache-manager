@@ -21,6 +21,8 @@ interface CacheTabProps {
   scenarios: UseScenariosReturn
   selectedEntityKey: string | null
   onSelectEntity: (key: string | null) => void
+  autoRefresh: boolean
+  onAutoRefreshChange: (value: boolean) => void
 }
 
 export const CacheTab: FC<CacheTabProps> = ({
@@ -35,6 +37,8 @@ export const CacheTab: FC<CacheTabProps> = ({
   scenarios,
   selectedEntityKey,
   onSelectEntity,
+  autoRefresh,
+  onAutoRefreshChange,
 }) => {
   const [viewMode, setViewMode] = useState<'form' | 'json'>('form')
   const [showSaveScenarioModal, setShowSaveScenarioModal] = useState(false)
@@ -94,6 +98,8 @@ export const CacheTab: FC<CacheTabProps> = ({
             onRefresh={onRefresh}
             loading={loading}
             draftEntityKeys={draftEntityKeys}
+            autoRefresh={autoRefresh}
+            onAutoRefreshChange={onAutoRefreshChange}
           />
         </div>
 

@@ -15,6 +15,8 @@ interface EntityListProps {
   onRefresh: () => Promise<void>
   loading: boolean
   draftEntityKeys?: Set<string>
+  autoRefresh: boolean
+  onAutoRefreshChange: (value: boolean) => void
 }
 
 export const EntityList: FC<EntityListProps> = ({
@@ -24,6 +26,8 @@ export const EntityList: FC<EntityListProps> = ({
   onRefresh,
   loading,
   draftEntityKeys,
+  autoRefresh,
+  onAutoRefreshChange,
 }) => {
   const [search, setSearch] = useState('')
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
@@ -122,6 +126,16 @@ export const EntityList: FC<EntityListProps> = ({
         >
           {loading ? '...' : 'Refresh'}
         </button>
+        <label className="flex items-center gap-1 text-sm text-panel-text-muted cursor-pointer ml-auto">
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => onAutoRefreshChange(e.target.checked)}
+            className="accent-panel-accent"
+          />
+          Auto
+          {autoRefresh && <span className="w-1.5 h-1.5 rounded-full bg-panel-success animate-pulse" />}
+        </label>
         <span className="text-sm text-panel-text-muted">
           {totalEntries} entries
         </span>

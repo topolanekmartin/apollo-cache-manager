@@ -19,6 +19,10 @@ export enum MSG {
   WRITE_CACHE_DATA_RESULT = 'WRITE_CACHE_DATA_RESULT',
   RESET_CACHE = 'RESET_CACHE',
   RESET_CACHE_RESULT = 'RESET_CACHE_RESULT',
+
+  // Cache watching (event-driven updates)
+  WATCH_CACHE = 'WATCH_CACHE',
+  UNWATCH_CACHE = 'UNWATCH_CACHE',
 }
 
 export interface DetectApolloMessage {
@@ -119,6 +123,14 @@ export interface ResetCacheResultMessage {
   payload: { success: boolean; error?: string }
 }
 
+export interface WatchCacheMessage {
+  type: MSG.WATCH_CACHE
+}
+
+export interface UnwatchCacheMessage {
+  type: MSG.UNWATCH_CACHE
+}
+
 export type ExtensionMessage =
   | DetectApolloMessage
   | ApolloDetectedMessage
@@ -135,6 +147,8 @@ export type ExtensionMessage =
   | WriteCacheDataResultMessage
   | ResetCacheMessage
   | ResetCacheResultMessage
+  | WatchCacheMessage
+  | UnwatchCacheMessage
 
 // Wrapper for messages sent via window.postMessage
 export interface BridgeMessage {

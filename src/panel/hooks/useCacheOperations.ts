@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { MSG } from '../../shared/messageTypes'
 import type {
   WriteFragmentResultMessage,
@@ -7,14 +7,17 @@ import type {
   WriteCacheDataResultMessage,
   ResetCacheResultMessage,
 } from '../../shared/messageTypes'
-import { sendAndWait } from '../utils/messaging'
+import { sendMessage, onMessage, sendAndWait } from '../utils/messaging'
 
 export function useCacheOperations() {
   const [cacheData, setCacheData] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const loadingRef = useRef(false)
 
   const readCache = useCallback(async () => {
+    loadingRef.current = true
     setLoading(true)
     setError(null)
     try {
@@ -31,9 +34,33 @@ export function useCacheOperations() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cache read failed')
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }, [])
+
+  // Event-driven auto-refresh via WATCH_CACHE / UNWATCH_CACHE
+  useEffect(() => {
+    if (!autoRefresh) return
+
+    // Listen for unsolicited CACHE_DATA pushes from the bridge
+    const removeListener = onMessage((msg) => {
+      if (msg.type === MSG.CACHE_DATA) {
+        const payload = (msg as CacheDataMessage).payload
+        if (payload.success) {
+          setCacheData(payload.data ?? null)
+        }
+      }
+    })
+
+    // Tell the bridge to start watching
+    sendMessage({ type: MSG.WATCH_CACHE })
+
+    return () => {
+      removeListener()
+      sendMessage({ type: MSG.UNWATCH_CACHE })
+    }
+  }, [autoRefresh])
 
   const writeFragment = useCallback(
     async (
@@ -132,5 +159,5 @@ export function useCacheOperations() {
     }
   }, [])
 
-  return { cacheData, loading, error, readCache, writeFragment, evictEntry, writeCacheData, resetCache, clearError: () => setError(null) }
+  return { cacheData, loading, error, readCache, writeFragment, evictEntry, writeCacheData, resetCache, clearError: () => setError(null), autoRefresh, setAutoRefresh }
 }

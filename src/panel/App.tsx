@@ -97,7 +97,6 @@ export const App: FC = () => {
                 key={tab}
                 onClick={() => {
                   setActiveTab(tab)
-                  if (tab === 'cache') cacheOps.readCache()
                 }}
                 className={`px-4 py-1.5 text-sm transition-colors ${
                   activeTab === tab
@@ -137,6 +136,8 @@ export const App: FC = () => {
                 scenarios={scenarios}
                 selectedEntityKey={selectedEntityKey}
                 onSelectEntity={setSelectedEntityKey}
+                autoRefresh={cacheOps.autoRefresh}
+                onAutoRefreshChange={cacheOps.setAutoRefresh}
               />
             )}
 
