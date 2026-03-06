@@ -1,10 +1,10 @@
 import { type FC, useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { ConfirmDialog } from './ConfirmDialog'
-import type { ParsedSchema } from '../types/schema'
+import type { FieldDef, ParsedSchema } from '../types/schema'
 import type { UseDraftReturn } from '../hooks/useDraft'
 import { TypeFieldForm } from './TypeFieldForm'
 import { CacheDataProvider } from '../contexts/CacheDataContext'
-import { cacheDataToFormData } from '../utils/cacheDataAdapter'
+import { cacheDataToFormData, inferTypeFromValue } from '../utils/cacheDataAdapter'
 import { stripFieldArguments } from '../utils/stripFieldArguments'
 
 interface EntityDetailProps {
@@ -31,6 +31,16 @@ export const EntityDetail: FC<EntityDetailProps> = ({
   onEvict,
 }) => {
   const [showEvictConfirm, setShowEvictConfirm] = useState(false)
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
+
+  const togglePath = useCallback((path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }, [])
   const entityData = useMemo(() => {
     if (!cacheData || !cacheData[entityKey]) return null
     return cacheData[entityKey] as Record<string, unknown>
@@ -73,6 +83,67 @@ export const EntityDetail: FC<EntityDetailProps> = ({
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
 
+  const fields = useMemo(
+    () => (schemaType && 'fields' in schemaType ? schemaType.fields : []),
+    [schemaType],
+  )
+
+  const augmentedFields = useMemo(() => {
+    if (!entityData || fields.length === 0) return fields
+
+    // Group cache keys by their stripped (base) name
+    const variantsByStripped = new Map<string, string[]>()
+    for (const key of Object.keys(entityData)) {
+      if (key === '__typename') continue
+      const stripped = stripFieldArguments(key)
+      const variants = variantsByStripped.get(stripped) ?? []
+      variants.push(key)
+      variantsByStripped.set(stripped, variants)
+    }
+
+    const schemaNames = new Set(fields.map((f) => f.name))
+    const result: FieldDef[] = []
+
+    // Process schema fields — expand multi-variant parameterized fields
+    for (const field of fields) {
+      const variants = variantsByStripped.get(field.name)
+      if (variants && variants.length > 1) {
+        // Multiple parameterized variants — create one field per variant
+        for (const variantKey of variants) {
+          result.push({ ...field, name: variantKey })
+        }
+      } else {
+        result.push(field)
+      }
+    }
+
+    // Add synthetic fields for cache-only keys not matching any schema field
+    const seenStripped = new Set<string>()
+    for (const key of Object.keys(entityData)) {
+      if (key === '__typename') continue
+      const stripped = stripFieldArguments(key)
+      if (schemaNames.has(stripped) || seenStripped.has(stripped)) continue
+      seenStripped.add(stripped)
+      result.push({
+        name: stripped,
+        description: null,
+        type: inferTypeFromValue(entityData[key], schema),
+        isDeprecated: false,
+      })
+    }
+
+    return result.length !== fields.length ? result : fields
+  }, [entityData, fields, schema])
+
+  // Clear collapsed paths when entity changes
+  const prevEntityForExpandRef = useRef(entityKey)
+  useEffect(() => {
+    if (prevEntityForExpandRef.current !== entityKey) {
+      prevEntityForExpandRef.current = entityKey
+      setExpandedPaths(new Set())
+    }
+  }, [entityKey])
+
   // Track the current entity key to detect entity changes
   const prevEntityKeyRef = useRef(entityKey)
   const prevEditModeRef = useRef(isEditing)
@@ -94,14 +165,14 @@ export const EntityDetail: FC<EntityDetailProps> = ({
 
       // Sync form/json data from display data
       if (schemaType && schema && 'fields' in schemaType) {
-        setFormData(cacheDataToFormData(displayData, schemaType.fields, schema))
+        setFormData(cacheDataToFormData(displayData, augmentedFields, schema))
       } else {
         setFormData({ ...displayData })
       }
       setJsonText(JSON.stringify(displayData, null, 2))
       setJsonError(null)
     }
-  }, [entityKey, isEditing, displayData, entityData, typeName, schemaType, schema, draft])
+  }, [entityKey, isEditing, displayData, entityData, typeName, schemaType, schema, draft, augmentedFields])
 
   // When draft entity updates externally, sync form/json
   useEffect(() => {
@@ -160,7 +231,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
           return
         }
         if (schemaType && schema && 'fields' in schemaType) {
-          setFormData(cacheDataToFormData(parsed as Record<string, unknown>, schemaType.fields, schema))
+          setFormData(cacheDataToFormData(parsed as Record<string, unknown>, augmentedFields, schema))
         } else {
           setFormData(parsed as Record<string, unknown>)
         }
@@ -185,9 +256,9 @@ export const EntityDetail: FC<EntityDetailProps> = ({
   }, [isEditing, entityData, entityKey, typeName, draft, onRequestDisableEditMode])
 
   const renderValue = useCallback(
-    (value: unknown, depth = 0): React.ReactNode => {
-      if (value === null) return <span className="text-panel-text-muted">null</span>
-      if (value === undefined) return <span className="text-panel-text-muted">undefined</span>
+    (value: unknown, depth = 0, path = ''): React.ReactNode => {
+      if (value === null) return <span className="text-panel-text-muted italic">null</span>
+      if (value === undefined) return <span className="text-panel-text-muted italic">undefined</span>
 
       if (typeof value === 'object' && !Array.isArray(value)) {
         const obj = value as Record<string, unknown>
@@ -196,7 +267,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
           return (
             <button
               onClick={() => onSelectEntity(obj.__ref as string)}
-              className="text-panel-accent text-sm hover:underline cursor-pointer"
+              className="text-panel-ref italic hover:underline cursor-pointer"
             >
               {'\u2192'} {obj.__ref as string}
             </button>
@@ -207,14 +278,33 @@ export const EntityDetail: FC<EntityDetailProps> = ({
           return <span className="text-panel-text-muted">{JSON.stringify(value)}</span>
         }
 
+        const keys = Object.keys(obj)
+        const isExpanded = expandedPaths.has(path)
+
         return (
-          <div className="ml-3 border-l border-panel-border/50 pl-2">
-            {Object.entries(obj).map(([k, v]) => (
-              <div key={k} className="flex gap-1 text-sm py-px">
-                <span className="text-panel-text-muted shrink-0">{k}:</span>
-                <span className="min-w-0">{renderValue(v, depth + 1)}</span>
+          <div>
+            <button
+              onClick={() => togglePath(path)}
+              className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+            >
+              {isExpanded ? '\u25BC' : '\u25B6'}
+            </button>
+            {!isExpanded ? (
+              <span className="text-panel-summary italic"> {'{ ... }'} {keys.length} keys</span>
+            ) : (
+              <div className="ml-4 border-l border-panel-border/50 pl-3">
+                {Object.entries(obj).map(([k, v]) => (
+                  <div key={k} className="flex items-start gap-2 py-0.5">
+                    <span className={`shrink-0 ${k === '__typename' ? 'text-panel-typename font-medium' : 'text-panel-field-name'}`}>{k}:</span>
+                    <span className="min-w-0">
+                      {k === '__typename' && typeof v === 'string'
+                        ? <span className="text-panel-typename font-medium">"{v}"</span>
+                        : renderValue(v, depth + 1, `${path}.${k}`)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )
       }
@@ -222,16 +312,31 @@ export const EntityDetail: FC<EntityDetailProps> = ({
       if (Array.isArray(value)) {
         if (value.length === 0) return <span className="text-panel-text-muted">[]</span>
         if (depth > 4) {
-          return <span className="text-panel-text-muted">[{value.length} items]</span>
+          return <span className="text-panel-summary italic">[{value.length} items]</span>
         }
+
+        const isExpanded = expandedPaths.has(path)
+
         return (
-          <div className="ml-3 border-l border-panel-border/50 pl-2">
-            {value.map((item, i) => (
-              <div key={i} className="flex gap-1 text-sm py-px">
-                <span className="text-panel-text-muted shrink-0">{i}:</span>
-                <span className="min-w-0">{renderValue(item, depth + 1)}</span>
+          <div>
+            <button
+              onClick={() => togglePath(path)}
+              className="text-panel-text-muted hover:text-panel-text cursor-pointer select-none"
+            >
+              {isExpanded ? '\u25BC' : '\u25B6'}
+            </button>
+            {!isExpanded ? (
+              <span className="text-panel-summary italic"> {'[ ... ]'} {value.length} items</span>
+            ) : (
+              <div className="ml-4 border-l border-panel-border/50 pl-3">
+                {value.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2 py-0.5">
+                    <span className="text-panel-field-name shrink-0">{i}:</span>
+                    <span className="min-w-0">{renderValue(item, depth + 1, `${path}[${i}]`)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )
       }
@@ -239,13 +344,13 @@ export const EntityDetail: FC<EntityDetailProps> = ({
       if (typeof value === 'string')
         return <span className="text-panel-success">"{value}"</span>
       if (typeof value === 'number')
-        return <span className="text-panel-accent">{value}</span>
+        return <span className="text-panel-number">{value}</span>
       if (typeof value === 'boolean')
-        return <span className="text-panel-warning">{String(value)}</span>
+        return <span className="text-panel-boolean">{String(value)}</span>
 
       return <span>{String(value)}</span>
     },
-    [onSelectEntity],
+    [onSelectEntity, expandedPaths, togglePath],
   )
 
   if (!entityData && !draftEntity) {
@@ -255,8 +360,6 @@ export const EntityDetail: FC<EntityDetailProps> = ({
       </div>
     )
   }
-
-  const fields = schemaType && 'fields' in schemaType ? schemaType.fields : []
 
   return (
     <div className="flex flex-col h-full">
@@ -325,21 +428,23 @@ export const EntityDetail: FC<EntityDetailProps> = ({
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 min-h-0">
+      <div className="flex-1 overflow-y-auto p-4 min-h-0">
         {isEditing ? (
           // Edit mode
           viewMode === 'form' && formAvailable && schema ? (
             <CacheDataProvider value={cacheData}>
+              <div className="font-mono-tree">
               <TypeFieldForm
-                fields={fields}
+                fields={augmentedFields}
                 data={formData}
                 onChange={handleFieldChange}
                 schema={schema}
                 visited={new Set([typeName])}
                 depth={0}
-                maxDepth={3}
+                maxDepth={5}
                 modifiedFields={modifiedFields}
               />
+              </div>
             </CacheDataProvider>
           ) : (
             <textarea
@@ -356,7 +461,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
               {JSON.stringify(displayData, null, 2)}
             </pre>
           ) : (
-            <div className="text-sm">
+            <div className="font-mono-tree">
               {displayData && (() => {
                 const entries = Object.entries(displayData as Record<string, unknown>)
 
@@ -371,7 +476,7 @@ export const EntityDetail: FC<EntityDetailProps> = ({
                 const seenStripped = new Set<string>()
 
                 return (
-                  <div className="ml-3 border-l border-panel-border/50 pl-2">
+                  <div className="ml-4 border-l border-panel-border/50 pl-3">
                     {entries.map(([k, v]) => {
                       const stripped = stripFieldArguments(k)
                       const isParameterized = stripped !== k
@@ -395,18 +500,24 @@ export const EntityDetail: FC<EntityDetailProps> = ({
                         displayKey = stripped
                       }
 
+                      const isTypename = k === '__typename'
+
                       return (
-                        <div key={k} className="flex items-start gap-1 text-sm py-px">
+                        <div key={k} className="flex items-start gap-2 py-0.5">
                           {modifiedFields.has(k) && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-panel-warning flex-shrink-0 mt-1.5" />
                           )}
                           <span
-                            className="text-panel-text-muted shrink-0"
+                            className={`shrink-0 ${isTypename ? 'text-panel-typename font-medium' : 'text-panel-field-name'}`}
                             title={isParameterized ? k : undefined}
                           >
                             {displayKey}:
                           </span>
-                          <span className="min-w-0">{renderValue(v, 1)}</span>
+                          <span className="min-w-0">
+                            {isTypename && typeof v === 'string'
+                              ? <span className="text-panel-typename font-medium">"{v}"</span>
+                              : renderValue(v, 1, k)}
+                          </span>
                         </div>
                       )
                     })}

@@ -169,7 +169,7 @@ export const UnionField: FC<UnionFieldProps> = ({
   }
 
   return (
-    <div className="border-l border-purple-400/30 pl-2 space-y-1">
+    <div className="border-l border-panel-border/50 pl-3 space-y-1">
       <div className="flex items-center gap-2">
         <select
           value={activeTypeName}
@@ -248,11 +248,18 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, sele
   const btnBase = 'px-2 py-0.5 text-xs rounded-sm transition-colors'
   const activeClass = 'bg-panel-accent text-panel-bg font-medium'
   const inactiveClass = 'bg-panel-surface text-panel-text-muted hover:text-panel-text border border-panel-border'
-  const disabledClass = 'bg-panel-surface text-panel-text-muted/50 border border-panel-border cursor-not-allowed'
 
-  const existingLabel = selectedRef
-    ? `Use existing · ${selectedRef}`
-    : `Use existing${entityCount > 0 ? ` (${entityCount})` : ''}`
+  if (entityCount === 0) {
+    return (
+      <div className="flex gap-px">
+        <span className={`${btnBase} ${activeClass}`}>Inline</span>
+      </div>
+    )
+  }
+
+  const referenceLabel = selectedRef
+    ? `Use reference · ${selectedRef}`
+    : `Use reference (${entityCount})`
 
   return (
     <div className="flex gap-px">
@@ -260,21 +267,16 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, sele
         onClick={() => onModeChange('create')}
         className={`${btnBase} rounded-r-none ${mode === 'create' ? activeClass : inactiveClass}`}
       >
-        Create new
+        Define inline
       </button>
       <button
-        onClick={() => entityCount > 0 && onModeChange('reference')}
-        disabled={entityCount === 0}
-        title={entityCount === 0 ? 'No matching entities in cache' : `${entityCount} entities available`}
+        onClick={() => onModeChange('reference')}
+        title={`${entityCount} entities available`}
         className={`${btnBase} rounded-l-none max-w-[200px] truncate ${
-          mode === 'reference'
-            ? activeClass
-            : entityCount === 0
-              ? disabledClass
-              : inactiveClass
+          mode === 'reference' ? activeClass : inactiveClass
         }`}
       >
-        {existingLabel}
+        {referenceLabel}
       </button>
     </div>
   )

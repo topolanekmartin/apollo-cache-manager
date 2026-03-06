@@ -12,12 +12,18 @@
   --color-panel-error: #f38ba8;
   --color-panel-warning: #f9e2af;
   --color-panel-input-bg: #1e1e2e;
+  --color-panel-field-name: #cba6f7;
+  --color-panel-ref: #94e2d5;
+  --color-panel-summary: #94e2d5;
+  --color-panel-typename: #f5c2e7;
+  --color-panel-number: #89dceb;
+  --color-panel-boolean: #fab387;
 }
 
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   background: var(--color-panel-bg);
   color: var(--color-panel-text);
 }
@@ -42,4 +48,10 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-panel-text-muted);
+}
+
+.font-mono-tree {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
 }

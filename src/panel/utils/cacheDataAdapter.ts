@@ -1,6 +1,36 @@
-import type { FieldDef, ParsedSchema } from '../types/schema'
+import type { FieldDef, ParsedSchema, TypeRef } from '../types/schema'
 import { getDefaultValueForType } from './defaultValues'
 import { stripFieldArguments } from './stripFieldArguments'
+
+/**
+ * Infers a TypeRef from a runtime cache value.
+ * Used to create synthetic FieldDefs for cache-only fields not in the schema.
+ */
+export function inferTypeFromValue(value: unknown, schema: ParsedSchema | null): TypeRef {
+  if (value == null) return { kind: 'SCALAR', name: 'JSON', ofType: null }
+  if (typeof value === 'string') return { kind: 'SCALAR', name: 'String', ofType: null }
+  if (typeof value === 'number') return { kind: 'SCALAR', name: 'Float', ofType: null }
+  if (typeof value === 'boolean') return { kind: 'SCALAR', name: 'Boolean', ofType: null }
+  if (Array.isArray(value)) {
+    const itemType =
+      value.length > 0
+        ? inferTypeFromValue(value[0], schema)
+        : { kind: 'SCALAR' as const, name: 'JSON', ofType: null }
+    return { kind: 'LIST', name: null, ofType: itemType }
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if ('__ref' in obj && typeof obj.__ref === 'string') {
+      const typeName = (obj.__ref as string).split(':')[0]
+      if (schema?.types.has(typeName)) return { kind: 'OBJECT', name: typeName, ofType: null }
+    }
+    if ('__typename' in obj && typeof obj.__typename === 'string') {
+      return { kind: 'OBJECT', name: obj.__typename as string, ofType: null }
+    }
+    return { kind: 'SCALAR', name: 'JSON', ofType: null }
+  }
+  return { kind: 'SCALAR', name: 'JSON', ofType: null }
+}
 
 /**
  * Converts a cache entry's data into form-compatible data by aligning it

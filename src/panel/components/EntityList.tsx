@@ -127,7 +127,7 @@ export const EntityList: FC<EntityListProps> = ({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-1 space-y-px">
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {hasNoResults && (
           <div className="text-sm text-panel-text-muted text-center py-4">
             {!cacheData ? 'Click Refresh to load cache' : 'No entries found'}
@@ -139,7 +139,7 @@ export const EntityList: FC<EntityListProps> = ({
           <button
             key={entry.id}
             onClick={() => onSelectEntity(entry.id)}
-            className={`w-full text-left px-2 py-1 text-sm rounded truncate transition-colors flex items-center gap-1.5 ${
+            className={`w-full text-left px-2 py-1.5 text-sm rounded truncate transition-colors flex items-center gap-1.5 ${
               selectedEntityKey === entry.id
                 ? 'bg-panel-accent/20 text-panel-accent'
                 : 'text-panel-warning hover:bg-panel-surface'
@@ -160,7 +160,7 @@ export const EntityList: FC<EntityListProps> = ({
             <div key={typename}>
               <button
                 onClick={() => setExpandedGroup(isGroupExpanded && !search ? null : typename)}
-                className="flex items-center gap-1 w-full px-2 py-0.5 text-sm font-medium text-panel-accent hover:text-panel-accent-hover transition-colors"
+                className="flex items-center gap-1 w-full px-2 py-1 text-sm font-medium text-panel-accent hover:text-panel-accent-hover transition-colors"
               >
                 <span className="text-sm">{isGroupExpanded ? '\u25BC' : '\u25B6'}</span>
                 <span>{typename}</span>
@@ -168,12 +168,12 @@ export const EntityList: FC<EntityListProps> = ({
               </button>
 
               {isGroupExpanded && (
-                <div className="ml-3 space-y-px">
+                <div className="ml-4 space-y-0.5">
                   {groupEntries.map((entry) => (
                     <button
                       key={entry.id}
                       onClick={() => handleSelectAndExpand(entry.id, typename)}
-                      className={`w-full text-left px-2 py-0.5 text-sm rounded truncate transition-colors flex items-center gap-1.5 ${
+                      className={`w-full text-left px-2 py-1 text-sm rounded truncate transition-colors flex items-center gap-1.5 ${
                         selectedEntityKey === entry.id
                           ? 'bg-panel-accent/20 text-panel-accent'
                           : 'text-panel-text hover:bg-panel-surface'

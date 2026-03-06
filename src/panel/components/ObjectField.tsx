@@ -2,6 +2,8 @@ import { type FC, useState, useCallback, useMemo } from 'react'
 import type { ParsedSchema, FieldDef } from '../types/schema'
 import { TypeFieldForm } from './TypeFieldForm'
 import { buildEmptyFormData } from '../utils/defaultValues'
+import { cacheDataToFormData } from '../utils/cacheDataAdapter'
+import { stripFieldArguments } from '../utils/stripFieldArguments'
 import { useCacheData } from '../contexts/CacheDataContext'
 import { getEntitiesForType, getEntityLabel } from '../utils/entityLabels'
 import { EntityPickerModal } from './EntityPickerModal'
@@ -33,6 +35,7 @@ export const ObjectField: FC<ObjectFieldProps> = ({
   const isRef = value != null && '__ref' in value && typeof value.__ref === 'string'
   const [mode, setMode] = useState<Mode>(isRef ? 'reference' : 'create')
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
+  const hasExistingData = value != null && !isRef
   const expanded = userExpanded ?? false
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -61,10 +64,15 @@ export const ObjectField: FC<ObjectFieldProps> = ({
 
   const handleFieldChange = useCallback(
     (fieldName: string, fieldValue: unknown) => {
-      onChange({
-        ...(value ?? { __typename: typeName }),
-        [fieldName]: fieldValue,
-      })
+      const base = { ...(value ?? { __typename: typeName }) }
+      base[fieldName] = fieldValue
+      // Also update any parameterized key mapping to same field
+      for (const key of Object.keys(base)) {
+        if (key !== fieldName && stripFieldArguments(key) === fieldName) {
+          base[key] = fieldValue
+        }
+      }
+      onChange(base)
     },
     [value, typeName, onChange],
   )
@@ -97,6 +105,11 @@ export const ObjectField: FC<ObjectFieldProps> = ({
     },
     [onChange],
   )
+
+  const normalizedValue = useMemo(() => {
+    if (!value || isRef) return value
+    return cacheDataToFormData(value, fields, schema)
+  }, [value, isRef, fields, schema])
 
   const isCircular = visited.has(typeName) || depth >= maxDepth
 
@@ -145,8 +158,8 @@ export const ObjectField: FC<ObjectFieldProps> = ({
   }
 
   return (
-    <div className="border-l border-panel-border pl-2">
-      <div className="flex items-center gap-2 mb-1">
+    <div className="border-l border-panel-border pl-3">
+      <div className="flex items-center gap-2 mb-2">
         <ModeToggle
           mode={mode}
           onModeChange={handleModeSwitch}
@@ -171,10 +184,10 @@ export const ObjectField: FC<ObjectFieldProps> = ({
         )}
       </div>
 
-      {mode === 'create' && expanded && value && !isRef && (
+      {mode === 'create' && expanded && normalizedValue && !isRef && (
         <TypeFieldForm
           fields={fields}
-          data={value}
+          data={normalizedValue}
           onChange={handleFieldChange}
           schema={schema}
           visited={new Set([...visited, typeName])}
@@ -217,11 +230,18 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, sele
   const btnBase = 'px-2 py-0.5 text-xs rounded-sm transition-colors'
   const activeClass = 'bg-panel-accent text-panel-bg font-medium'
   const inactiveClass = 'bg-panel-surface text-panel-text-muted hover:text-panel-text border border-panel-border'
-  const disabledClass = 'bg-panel-surface text-panel-text-muted/50 border border-panel-border cursor-not-allowed'
 
-  const existingLabel = selectedRef
-    ? `Use existing · ${selectedRef}`
-    : `Use existing${entityCount > 0 ? ` (${entityCount})` : ''}`
+  if (entityCount === 0) {
+    return (
+      <div className="flex gap-px">
+        <span className={`${btnBase} ${activeClass}`}>Inline</span>
+      </div>
+    )
+  }
+
+  const referenceLabel = selectedRef
+    ? `Use reference · ${selectedRef}`
+    : `Use reference (${entityCount})`
 
   return (
     <div className="flex gap-px">
@@ -229,21 +249,16 @@ const ModeToggle: FC<ModeToggleProps> = ({ mode, onModeChange, entityCount, sele
         onClick={() => onModeChange('create')}
         className={`${btnBase} rounded-r-none ${mode === 'create' ? activeClass : inactiveClass}`}
       >
-        Create new
+        Define inline
       </button>
       <button
-        onClick={() => entityCount > 0 && onModeChange('reference')}
-        disabled={entityCount === 0}
-        title={entityCount === 0 ? 'No matching entities in cache' : `${entityCount} entities available`}
+        onClick={() => onModeChange('reference')}
+        title={`${entityCount} entities available`}
         className={`${btnBase} rounded-l-none max-w-[200px] truncate ${
-          mode === 'reference'
-            ? activeClass
-            : entityCount === 0
-              ? disabledClass
-              : inactiveClass
+          mode === 'reference' ? activeClass : inactiveClass
         }`}
       >
-        {existingLabel}
+        {referenceLabel}
       </button>
     </div>
   )
