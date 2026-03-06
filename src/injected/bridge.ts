@@ -3,6 +3,9 @@ import gql from 'graphql-tag'
 import { MSG } from '../shared/messageTypes'
 import type { BridgeMessage, ExtensionMessage } from '../shared/messageTypes'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any
+
 declare global {
   interface Window {
     __APOLLO_CLIENT__?: ApolloClientLike
@@ -21,6 +24,9 @@ interface ApolloClientLike {
       data: Record<string, unknown>
     }) => void
     reset: () => Promise<void>
+    write: AnyFn
+    modify: AnyFn
+    [key: string]: unknown
   }
   query?: (options: { query: unknown; fetchPolicy?: string }) => Promise<{ data: unknown }>
   link?: unknown
@@ -141,6 +147,21 @@ function sendToContent(message: ExtensionMessage) {
     message,
   }
   window.postMessage(bridgeMsg, '*')
+}
+
+// --- Cache watcher state ---
+let unwatchCache: (() => void) | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopWatching() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  if (unwatchCache) {
+    unwatchCache()
+    unwatchCache = null
+  }
 }
 
 async function handleMessage(msg: ExtensionMessage) {
@@ -362,6 +383,100 @@ async function handleMessage(msg: ExtensionMessage) {
           },
         })
       }
+      break
+    }
+
+    case MSG.WATCH_CACHE: {
+      // Stop any existing watcher first
+      stopWatching()
+
+      const client = getApolloClient()
+      if (!client) break
+
+      // Send initial cache snapshot immediately
+      try {
+        const data = client.cache.extract()
+        sendToContent({ type: MSG.CACHE_DATA, payload: { success: true, data } })
+      } catch {
+        // ignore initial read failure
+      }
+
+      // Debounced flush: extract cache and send to panel
+      const flush = () => {
+        if (debounceTimer) clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null
+          try {
+            const freshClient = getApolloClient()
+            if (!freshClient) return
+            const snapshot = freshClient.cache.extract()
+            sendToContent({ type: MSG.CACHE_DATA, payload: { success: true, data: snapshot } })
+          } catch {
+            // silently skip failed extracts
+          }
+        }, 200)
+      }
+
+      // Monkey-patch cache mutation methods
+      const cache = client.cache
+      const methodsToPath = ['write', 'modify', 'evict'] as const
+      const originals = new Map<string, AnyFn>()
+      let patched = false
+
+      try {
+        for (const name of methodsToPath) {
+          const orig = cache[name]
+          if (typeof orig !== 'function') continue
+          originals.set(name, orig as AnyFn)
+          // Patch on the instance (not prototype) so it's easily reversible
+          ;(cache as Record<string, unknown>)[name] = function (this: unknown, ...args: unknown[]) {
+            const result = (orig as AnyFn).apply(this, args)
+            flush()
+            return result
+          }
+        }
+        patched = originals.size > 0
+      } catch {
+        // Patching failed (frozen object, etc.) — restore any partial patches
+        for (const [name, orig] of originals) {
+          ;(cache as Record<string, unknown>)[name] = orig
+        }
+        originals.clear()
+        patched = false
+      }
+
+      if (patched) {
+        // Cleanup: restore original methods
+        unwatchCache = () => {
+          for (const [name, orig] of originals) {
+            ;(cache as Record<string, unknown>)[name] = orig
+          }
+          originals.clear()
+        }
+      } else {
+        // Fallback: poll every 2s with change detection
+        let lastJson = ''
+        const intervalId = setInterval(() => {
+          try {
+            const freshClient = getApolloClient()
+            if (!freshClient) return
+            const snapshot = freshClient.cache.extract()
+            const json = JSON.stringify(snapshot)
+            if (json !== lastJson) {
+              lastJson = json
+              sendToContent({ type: MSG.CACHE_DATA, payload: { success: true, data: snapshot } })
+            }
+          } catch {
+            // silently skip
+          }
+        }, 2000)
+        unwatchCache = () => clearInterval(intervalId)
+      }
+      break
+    }
+
+    case MSG.UNWATCH_CACHE: {
+      stopWatching()
       break
     }
   }
