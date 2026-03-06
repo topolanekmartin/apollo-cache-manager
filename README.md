@@ -32,8 +32,7 @@
 
 ### Chrome Web Store
 
-<!-- TODO: Add Chrome Web Store link after publishing -->
-Install from the [Chrome Web Store](https://chrome.google.com/webstore) (coming soon).
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/apollo-cache-manager/lcbhklhpfhgnmcebgopdahhicbjbkdml).
 
 ### Manual Installation (Developer Mode)
 
