@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apollo Cache Manager",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Inspect, edit, and manage Apollo Client cache data in real-time from Chrome DevTools",
   "permissions": ["storage"],
   "devtools_page": "devtools.html",
